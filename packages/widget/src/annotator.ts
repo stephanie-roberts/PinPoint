@@ -1,0 +1,841 @@
+import { type AnnotationPayload, type FeedbackType, newClientId, type ScreenshotRegion } from "@tc-pinpoint/core";
+import { INSTANT_ANNOTATION_SIZE, Z_INDEX_MAX } from "./constants.js";
+import { deepElementFromPoint, findAnchorElement, generateAnchor, rectToPercentages } from "./dom/anchor.js";
+import { el, setText } from "./dom-utils.js";
+import type { EventBus, WidgetEvents } from "./events.js";
+import { deepFocusTarget, isWidgetChrome } from "./focus-tracker.js";
+import { isolateFromHost, registerEscapeLayer } from "./host-isolation.js";
+import type { TFunction } from "./i18n/index.js";
+import { Popup } from "./popup.js";
+import { NO_VIEWPORT_INSETS, type ViewportInsets } from "./popup-placement.js";
+import { type AnnotatedScreenshot, captureAnnotatedScreenshot } from "./screenshot.js";
+import type { ThemeColors } from "./styles/theme.js";
+import { isCoarsePointer, isCompactViewport } from "./viewport.js";
+
+/** Below this size (px) a drawn rect is an accidental click — or, on touch, a tap. */
+const MIN_RECT_SIZE = 10;
+
+/** The part of a viewport rect that is on screen. */
+function clampToViewport(r: DOMRect): DOMRect {
+  const left = Math.max(0, r.left);
+  const top = Math.max(0, r.top);
+  return new DOMRect(
+    left,
+    top,
+    Math.max(0, Math.min(r.right, window.innerWidth) - left),
+    Math.max(0, Math.min(r.bottom, window.innerHeight) - top),
+  );
+}
+
+export interface AnnotationComplete {
+  annotation: AnnotationPayload;
+  type: FeedbackType;
+  message: string;
+  /**
+   * Idempotency key of this feedback, minted once per popup session: every
+   * resend from the same popup carries it, so the server (and the retry
+   * queue) dedupe a resend against an earlier attempt instead of storing
+   * the feedback twice. See `PopupSession`.
+   */
+  clientId: string;
+  /**
+   * Base64 JPEG `data:` URL captured by html2canvas-pro, or null when capture
+   * is disabled / failed / the peer dep is missing.
+   */
+  screenshotDataUrl?: string | null | undefined;
+  /**
+   * Where the drawn rect sits within the captured screenshot, as fractions
+   * of the image dimensions — see `ScreenshotRegion`. Null whenever
+   * `screenshotDataUrl` is null.
+   */
+  screenshotRegion?: ScreenshotRegion | null | undefined;
+}
+
+/**
+ * State shared by every submit attempt from one popup session (the popup
+ * restores the form after a failure so the user can resend).
+ *
+ * `clientId` is reused even when the user edits the message before
+ * resending. If the first attempt landed although it timed out on our side,
+ * the server dedupes the resend and returns the original record, so that
+ * edit is lost — accepted: it takes a commit whose response never arrived,
+ * and minting a new id on edit would store a duplicate in that same case.
+ */
+interface PopupSession {
+  readonly clientId: string;
+  /** Captured on the first attempt (`undefined` until then) and reused on every retry. */
+  screenshot?: AnnotatedScreenshot | null;
+}
+
+function newPopupSession(): PopupSession {
+  return { clientId: newClientId() };
+}
+
+/**
+ * Annotation mode: full-page overlay with rectangle drawing.
+ *
+ * Glassmorphism design:
+ * - Frosted glass toolbar at top
+ * - Subtle tinted overlay
+ * - Accent-colored drawing rectangle with glow
+ */
+export class Annotator {
+  private overlay: HTMLElement | null = null;
+  private toolbar: HTMLElement | null = null;
+  private drawingRect: HTMLElement | null = null;
+  private startX = 0;
+  private startY = 0;
+  private isDrawing = false;
+  private isActive = false;
+  /**
+   * True when the current annotation session was triggered by right-click
+   * (instant comment) rather than the FAB draw flow. Controls whether the
+   * toolbar is shown and whether cancel deactivates unconditionally.
+   */
+  private instantMode = false;
+  private popup: Popup;
+  private savedOverflow = "";
+  private preActiveFocusElement: Element | null = null;
+  /**
+   * Target of the keyboard (Enter) annotation path — the page element focused
+   * at activation, or the focus tracker's fallback when activation came from
+   * the widget's own chrome (FAB menu). Distinct from `preActiveFocusElement`,
+   * which keeps its focus-restore role untouched. See issue #162.
+   */
+  private keyboardTarget: HTMLElement | null = null;
+  private rafId: number | null = null;
+  private pendingMoveEvent: MouseEvent | Touch | null = null;
+  /**
+   * Reject handle for the in-flight `runSubmission` promise, or null when no
+   * submission is pending. `destroy()` calls it to settle the promise rather
+   * than leaving the awaiting closure hung past teardown.
+   */
+  private rejectPendingSubmission: ((reason: Error) => void) | null = null;
+  /**
+   * The session's Escape handler listens on `document` and also ends a
+   * session from its comment popup: one layer covers overlay, toolbar and popup.
+   */
+  private readonly unregisterEscapeLayer = registerEscapeLayer(document, () => this.isActive);
+
+  constructor(
+    private readonly colors: ThemeColors,
+    private readonly bus: EventBus<WidgetEvents>,
+    private readonly t: TFunction,
+    private readonly enableScreenshot: boolean = false,
+    private readonly getFallbackTarget?: () => HTMLElement | null,
+  ) {
+    this.popup = new Popup(colors, t);
+
+    this.bus.on("annotation:start", () => this.activate());
+  }
+
+  /**
+   * True while the annotator is active (overlay/popup session in progress).
+   * The launcher checks this before calling `preventDefault()` on the
+   * `contextmenu` event so a right-click during an active session falls
+   * through to the native menu instead of being silently swallowed.
+   */
+  get isBusy(): boolean {
+    return this.isActive;
+  }
+
+  /**
+   * Re-read every `t(...)`-derived label inside the popup. The annotator's
+   * own toolbar text is created fresh on every `activate()` call, so only
+   * the long-lived popup needs explicit re-localization here.
+   */
+  refreshLabels(): void {
+    this.popup.refreshLabels();
+  }
+
+  /**
+   * Capture a contextual screenshot of the drawn rect (padded with the
+   * surrounding UI, plus the rect's region within the image) when
+   * `enableScreenshot` is on. Returns null on disable / capture failure /
+   * missing peer dep — the feedback is always submitted regardless.
+   */
+  private async maybeCapture(rect: DOMRect): Promise<AnnotatedScreenshot | null> {
+    if (!this.enableScreenshot) return null;
+    return captureAnnotatedScreenshot(rect);
+  }
+
+  private activate(): void {
+    if (this.isActive) return;
+    this.isActive = true;
+    const drawMode = !this.instantMode;
+    const compact = isCompactViewport();
+    const touch = isCoarsePointer();
+    // The visible copy on touch says "tap an element". The overlay's name keeps
+    // the Enter route (#162): tablets with a keyboard, and screen readers on them.
+    const instruction = this.t("annotator.instruction");
+
+    // Capture the focused element before activation for keyboard annotation
+    this.preActiveFocusElement = document.activeElement;
+
+    // Keyboard (Enter) target. FAB-launched sessions re-focus the FAB before
+    // activation, so the active element here is only the widget's 0x0 shadow
+    // host — fall back to the last page element the focus tracker recorded
+    // instead of silently dead-ending the Enter path. See issue #162.
+    // Focus inside a web component reports its host — annotate the focused
+    // element itself, as the pointer path does (#177).
+    const active = document.activeElement;
+    this.keyboardTarget =
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      active !== document.documentElement &&
+      !isWidgetChrome(active)
+        ? deepFocusTarget(active)
+        : (this.getFallbackTarget?.() ?? null);
+
+    // Lock page scroll
+    this.savedOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    // Overlay — subtle blue tint for depth.
+    //
+    // Overlay, toolbar and the drawn rectangle live on document.body, outside
+    // the tcpinpoint-widget shadow host. Without the `data-tcpinpoint-ignore`
+    // marker the screenshot predicate in screenshot.ts cannot reach them —
+    // and the accent-colored selection border plus the page tint end up
+    // baked into the captured JPEG. See issue #124.
+    this.overlay = el("div", {
+      style: /* css */ `
+        position:fixed;inset:0;
+        z-index:${Z_INDEX_MAX - 1};
+        pointer-events:auto;
+        background:rgba(15, 23, 42, 0.04);
+        cursor:${drawMode ? "crosshair" : "default"};
+        touch-action:none;-webkit-touch-callout:none;
+        -webkit-user-select:none;user-select:none;
+      `,
+    });
+    // The overlay is an interactive surface (draw with the pointer, Enter to
+    // annotate the previously focused element, Escape to cancel) and receives
+    // programmatic focus below — so it must be exposed to assistive tech, NOT
+    // aria-hidden: focusing an aria-hidden element parks screen-reader users
+    // on a node that announces nothing (axe "aria-hidden-focus", serious).
+    this.overlay.setAttribute("role", "application");
+    this.overlay.setAttribute("aria-label", drawMode ? instruction : this.t("annotator.instantInstruction"));
+    this.overlay.setAttribute("data-tcpinpoint-ignore", "true");
+
+    // Toolbar — glassmorphism bar (suppressed in instant mode: the
+    // "Draw a rectangle" copy is wrong when the composer is already open)
+    if (drawMode) {
+      this.toolbar = el("div", {
+        style: /* css */ `
+          position:fixed;top:0;left:0;right:0;
+          z-index:${Z_INDEX_MAX};
+          pointer-events:auto;
+          min-height:52px;box-sizing:border-box;
+          padding:calc(env(safe-area-inset-top, 0px) + 8px) ${compact ? "12px 8px 16px" : "16px 8px"};
+          background:${compact ? this.colors.bg : this.colors.glassBg};
+          backdrop-filter:blur(24px);
+          -webkit-backdrop-filter:blur(24px);
+          border-bottom:1px solid ${this.colors.glassBorder};
+          display:flex;align-items:center;justify-content:center;gap:${compact ? 12 : 16}px;
+          font-family:"Inter",system-ui,-apple-system,sans-serif;
+          font-size:14px;line-height:1.35;color:${this.colors.text};
+          box-shadow:0 4px 16px ${this.colors.shadow};
+          -webkit-font-smoothing:antialiased;
+        `,
+      });
+      this.toolbar.setAttribute("data-tcpinpoint-ignore", "true");
+
+      const dot = el("span", {
+        style: /* css */ `
+          width:8px;height:8px;border-radius:50%;flex-shrink:0;
+          background:${this.colors.accent};
+          box-shadow:0 0 8px ${this.colors.accentGlow};
+          animation:pulse 1.5s ease-in-out infinite;
+        `,
+      });
+
+      // Add pulse animation inline (respects prefers-reduced-motion)
+      const style = document.createElement("style");
+      style.textContent = [
+        "@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}",
+        "@media(prefers-reduced-motion:reduce){@keyframes pulse{from,to{opacity:1}}}",
+      ].join("");
+      this.toolbar.appendChild(style);
+
+      const instructionEl = el("span", { style: "font-weight:500;letter-spacing:-0.01em;min-width:0;" });
+      setText(instructionEl, touch ? this.t("annotator.touchInstruction") : instruction);
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.style.cssText = /* css */ `
+        height:${touch ? 40 : 34}px;padding:0 18px;border-radius:9999px;flex-shrink:0;
+        border:1px solid ${this.colors.border};
+        background:${this.colors.glassBg};
+        color:${this.colors.textTertiary};font-family:"Inter",system-ui,-apple-system,sans-serif;
+        font-size:13px;font-weight:500;cursor:pointer;
+        transition:all 0.2s ease;
+      `;
+      setText(cancelBtn, this.t("annotator.cancel"));
+      cancelBtn.addEventListener("click", () => this.cancelSession());
+      cancelBtn.addEventListener("mouseenter", () => {
+        cancelBtn.style.borderColor = this.colors.typeBug;
+        cancelBtn.style.color = this.colors.typeBug;
+        cancelBtn.style.background = this.colors.typeBugBg;
+      });
+      cancelBtn.addEventListener("mouseleave", () => {
+        cancelBtn.style.borderColor = this.colors.border;
+        cancelBtn.style.color = this.colors.textTertiary;
+        cancelBtn.style.background = this.colors.glassBg;
+      });
+
+      this.toolbar.appendChild(dot);
+      this.toolbar.appendChild(instructionEl);
+      this.toolbar.appendChild(cancelBtn);
+    }
+
+    if (drawMode) {
+      // Mouse events
+      this.overlay.addEventListener("mousedown", this.onMouseDown);
+      this.overlay.addEventListener("mousemove", this.onMouseMove);
+      this.overlay.addEventListener("mouseup", this.onMouseUp);
+
+      // Touch events (Surface Pro, iPad, etc.)
+      this.overlay.addEventListener("touchstart", this.onTouchStart, { passive: false });
+      this.overlay.addEventListener("touchmove", this.onTouchMove, { passive: false });
+      this.overlay.addEventListener("touchend", this.onTouchEnd);
+
+      // Keyboard annotation: Enter selects the captured keyboard target
+      this.overlay.addEventListener("keydown", this.onOverlayKeyDown);
+    }
+
+    // Allow tab-through so keyboard users can reach underlying elements
+    this.overlay.setAttribute("tabindex", "0");
+
+    // Escape to cancel
+    document.addEventListener("keydown", this.onKeyDown);
+
+    isolateFromHost(this.overlay);
+    if (this.toolbar) isolateFromHost(this.toolbar);
+    document.body.appendChild(this.overlay);
+    if (this.toolbar) document.body.appendChild(this.toolbar);
+
+    // Move focus to the overlay so the keyboard-annotation path (Enter →
+    // annotate the captured keyboard target) actually receives keydown —
+    // onOverlayKeyDown only fires when the overlay itself is focused. The
+    // overlay has tabindex=0, and the keyboard target was captured at the top
+    // of activate(), before the overlay existed, so focusing here doesn't
+    // clobber it. (WCAG 2.1.1 Level A)
+    this.overlay.focus({ preventScroll: true });
+  }
+
+  /**
+   * Viewport band covered by the toolbar, measured rather than assumed: its
+   * height depends on fonts and zoom, and a host may restyle or move it.
+   */
+  private toolbarInsets(): ViewportInsets {
+    if (!this.toolbar) return NO_VIEWPORT_INSETS;
+    const toolbarRect = this.toolbar.getBoundingClientRect();
+    if (toolbarRect.height === 0) return NO_VIEWPORT_INSETS;
+    const viewportHeight = window.innerHeight;
+    const sitsInTopHalf = toolbarRect.top + toolbarRect.height / 2 < viewportHeight / 2;
+    return sitsInTopHalf
+      ? { top: Math.max(0, toolbarRect.bottom), bottom: 0 }
+      : { top: 0, bottom: Math.max(0, viewportHeight - toolbarRect.top) };
+  }
+
+  /**
+   * User-initiated end of the session (toolbar Cancel, Escape). Closes an open
+   * comment form first so it is not left floating with nothing behind it — the
+   * popup's own focus restore runs before the annotator hands focus back to the
+   * pre-activation element. While a submission is in flight the popup refuses
+   * to close, and the session stays active too: deactivating here would clear
+   * `isActive` and emit `annotation:end` while the popup still waits on
+   * `feedback:sent`, letting a second annotation overwrite its resolver and
+   * submit handler. The session ends once the pending popup settles; the
+   * send bounds its network and store waits (#342), so the hold ends too.
+   */
+  private cancelSession(): void {
+    if (!this.isActive) return;
+    this.popup.dismiss();
+    if (this.popup.isOpen) return;
+    this.deactivate();
+  }
+
+  private deactivate(): void {
+    if (!this.isActive) return;
+    this.isActive = false;
+    this.isDrawing = false;
+    this.instantMode = false;
+    const previouslyFocused = this.preActiveFocusElement;
+    this.preActiveFocusElement = null;
+    this.keyboardTarget = null;
+
+    // Cancel any pending rAF to prevent stale callbacks
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.pendingMoveEvent = null;
+
+    document.body.style.overflow = this.savedOverflow;
+    document.removeEventListener("keydown", this.onKeyDown);
+
+    this.overlay?.remove();
+    this.toolbar?.remove();
+    this.drawingRect?.remove();
+    this.overlay = null;
+    this.toolbar = null;
+    this.drawingRect = null;
+
+    // Removing the focused overlay drops focus to <body> — hand it back to the
+    // element that had it before activation (WCAG 2.4.3 focus order). When
+    // activation came from the FAB menu this element is the shadow host and
+    // focus() is a no-op; the Fab restores itself on annotation:end instead.
+    if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
+      previouslyFocused.focus({ preventScroll: true });
+    }
+
+    this.bus.emit("annotation:end");
+  }
+
+  private onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") this.cancelSession();
+  };
+
+  /**
+   * Keyboard annotation: pressing Enter while the overlay is active selects
+   * the keyboard target captured at activation (the focused page element, or
+   * the focus tracker's fallback for FAB-launched sessions) and creates a
+   * full-bounds annotation covering that element (WCAG 2.1.1 Level A).
+   */
+  private onOverlayKeyDown = async (e: KeyboardEvent): Promise<void> => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    // A submission is already running or the popup is open — ignore so we
+    // can't orphan the first `popup.show()` / `runSubmission` pair.
+    if (this.popup.isOpen) return;
+    // Mid-pointer-drag: the user is drawing — hijacking `drawingRect` for the
+    // keyboard highlight here would corrupt the drag's geometry updates.
+    if (this.isDrawing) return;
+
+    const target = this.keyboardTarget;
+    if (!target || !(target instanceof HTMLElement)) return;
+    await this.annotateElement(target);
+  };
+
+  /**
+   * Comment on a whole element with a full-bounds rect — the keyboard (Enter)
+   * path and the touch tap path. A tapped element can be far taller than the
+   * screen, and the capture renders at devicePixelRatio (3 on phones): the tap
+   * path captures only its visible part, like the instant flow.
+   */
+  private async annotateElement(target: HTMLElement, tap = false): Promise<void> {
+    const bounds = target.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+
+    const rectBounds = new DOMRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+    // Highlight the target like a pointer-drawn rectangle so the user sees
+    // what they're about to comment. Assigned to `drawingRect` so every
+    // existing cleanup path (deactivate, screenshot exclusion, removal once
+    // the popup closes) treats it exactly like the mouse path's rect.
+    this.drawingRect?.remove();
+    const highlight = this.createDrawingRect();
+    highlight.style.left = `${bounds.x}px`;
+    highlight.style.top = `${bounds.y}px`;
+    highlight.style.width = `${bounds.width}px`;
+    highlight.style.height = `${bounds.height}px`;
+    this.drawingRect = highlight;
+    this.overlay?.appendChild(highlight);
+
+    const anchor = generateAnchor(target);
+    const annotation: AnnotationPayload = {
+      anchor,
+      rect: { xPct: 0, yPct: 0, wPct: 1, hPct: 1 },
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      viewportW: window.innerWidth,
+      viewportH: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio,
+    };
+
+    // Submission stays inside the popup so the user gets a visible spinner
+    // until the server confirms — see finishDrawing for the rationale.
+    const result = await this.openForm(annotation, rectBounds, tap ? clampToViewport(rectBounds) : rectBounds);
+
+    this.drawingRect?.remove();
+    this.drawingRect = null;
+    if (result) this.deactivate();
+  }
+
+  private onMouseDown = (e: MouseEvent): void => {
+    this.startDrawing(e.clientX, e.clientY);
+  };
+
+  private onTouchStart = (e: TouchEvent): void => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (touch) this.startDrawing(touch.clientX, touch.clientY);
+  };
+
+  private startDrawing(clientX: number, clientY: number): void {
+    // Suppress pointer-driven drawing while the popup is open over the page.
+    // Starting a second rectangle would orphan the first `popup.show()`
+    // promise (and its `runSubmission`). This closes a latent bug where
+    // drawing during the open popup overwrote `Popup.resolve`.
+    if (this.popup.isOpen) return;
+
+    this.isDrawing = true;
+    this.startX = clientX;
+    this.startY = clientY;
+
+    this.drawingRect?.remove();
+    this.drawingRect = this.createDrawingRect();
+    this.overlay?.appendChild(this.drawingRect);
+  }
+
+  /**
+   * The accent-colored selection rectangle — shared by pointer drawing and
+   * the keyboard (Enter) highlight so the two paths can't drift visually.
+   * Excluded from screenshot capture (see overlay creation in activate()).
+   */
+  private createDrawingRect(): HTMLElement {
+    const rect = el("div", {
+      style: /* css */ `
+        position:fixed;
+        border:2px solid ${this.colors.accent};
+        background:${this.colors.accent}12;
+        pointer-events:none;
+        border-radius:8px;
+        box-shadow:0 0 16px ${this.colors.accentGlow};
+        transition:box-shadow 0.15s ease;
+      `,
+    });
+    rect.setAttribute("data-tcpinpoint-ignore", "true");
+    return rect;
+  }
+
+  private onMouseMove = (e: MouseEvent): void => {
+    this.scheduleRectUpdate(e);
+  };
+
+  private onTouchMove = (e: TouchEvent): void => {
+    e.preventDefault();
+    if (e.touches[0]) this.scheduleRectUpdate(e.touches[0]);
+  };
+
+  private scheduleRectUpdate(source: MouseEvent | Touch): void {
+    if (!this.isDrawing || !this.drawingRect) return;
+
+    this.pendingMoveEvent = source;
+    if (this.rafId !== null) return;
+
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      const evt = this.pendingMoveEvent;
+      if (!evt || !this.drawingRect) return;
+
+      const x = Math.min(evt.clientX, this.startX);
+      const y = Math.min(evt.clientY, this.startY);
+      const w = Math.abs(evt.clientX - this.startX);
+      const h = Math.abs(evt.clientY - this.startY);
+
+      this.drawingRect.style.left = `${x}px`;
+      this.drawingRect.style.top = `${y}px`;
+      this.drawingRect.style.width = `${w}px`;
+      this.drawingRect.style.height = `${h}px`;
+    });
+  }
+
+  private onTouchEnd = async (e: TouchEvent): Promise<void> => {
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    // A tap, or a slide too thin to frame an area (a finger along a line of
+    // text): comment on the element under the finger instead of dropping the
+    // gesture — a fingertip hides the very corner it is trying to place.
+    if (
+      this.isDrawing &&
+      (Math.abs(touch.clientX - this.startX) < MIN_RECT_SIZE || Math.abs(touch.clientY - this.startY) < MIN_RECT_SIZE)
+    ) {
+      this.isDrawing = false;
+      this.drawingRect?.remove();
+      this.drawingRect = null;
+      const target = this.elementAt(touch.clientX, touch.clientY);
+      if (target) await this.annotateElement(target, true);
+      return;
+    }
+    await this.finishDrawing(touch.clientX, touch.clientY);
+  };
+
+  /**
+   * The page element under a point, seen through the overlay and into open
+   * shadow roots like the drag path — null for widget chrome and the page root.
+   */
+  private elementAt(x: number, y: number): HTMLElement | null {
+    if (this.overlay) this.overlay.style.pointerEvents = "none";
+    const hit = deepElementFromPoint(x, y);
+    if (this.overlay) this.overlay.style.pointerEvents = "auto";
+    // An icon's <path> is no target — take the element hosting the <svg>.
+    const target = hit instanceof SVGElement ? (hit.ownerSVGElement ?? hit).parentElement : hit;
+    return target instanceof HTMLElement &&
+      target !== document.body &&
+      target !== document.documentElement &&
+      !isWidgetChrome(target)
+      ? target
+      : null;
+  }
+
+  private onMouseUp = async (e: MouseEvent): Promise<void> => {
+    await this.finishDrawing(e.clientX, e.clientY);
+  };
+
+  private finishDrawing = async (clientX: number, clientY: number): Promise<void> => {
+    if (!this.isDrawing || !this.drawingRect) return;
+    this.isDrawing = false;
+
+    const x = Math.min(clientX, this.startX);
+    const y = Math.min(clientY, this.startY);
+    const w = Math.abs(clientX - this.startX);
+    const h = Math.abs(clientY - this.startY);
+
+    // Ignore tiny rectangles (accidental clicks)
+    if (w < MIN_RECT_SIZE || h < MIN_RECT_SIZE) {
+      this.drawingRect.remove();
+      this.drawingRect = null;
+      return;
+    }
+
+    const rectBounds = new DOMRect(x, y, w, h);
+
+    // Build annotation payload BEFORE the popup opens — the overlay is still
+    // up so `findAnchorElement` can briefly disable pointer events on it.
+    const { annotation } = this.buildAnnotation(rectBounds);
+
+    // Keep the drawn rectangle visible while the popup is open so the user
+    // can see what they're sending feedback about — including while the
+    // submit-spinner is running. We only remove it after the popup closes.
+    const result = await this.openForm(annotation, rectBounds);
+
+    this.drawingRect?.remove();
+    this.drawingRect = null;
+    if (result) this.deactivate();
+  };
+
+  /**
+   * Instantly triggers the annotation popup at a specific location without
+   * requiring the user to draw a rectangle. Used for right-click commenting.
+   *
+   * Entry is routed through the event bus (`annotation:start`) so the public
+   * event contract (`onAnnotationStart` / `onAnnotationEnd`) is honoured —
+   * hosts that pause analytics or chat widgets on annotation hooks see a
+   * symmetric start/end pair regardless of entry path.
+   */
+  public async startInstantAnnotation(clientX: number, clientY: number): Promise<void> {
+    // Guard: no-op while the annotator is active (overlay/popup session in
+    // progress). `isActive` covers the entire window: draw mode in progress,
+    // popup open for typing, and submission in flight. Without this a second
+    // right-click (e.g. to paste in the textarea) would reset the form,
+    // orphan the pending popup.show(), and leak the old drawing rect.
+    if (this.isActive) return;
+
+    // Set instant-mode flag BEFORE emitting annotation:start so activate()
+    // (called by the bus handler) can read it and suppress the toolbar.
+    this.instantMode = true;
+    this.bus.emit("annotation:start");
+
+    // Build a small point-rect centered at the cursor for the marker/percentage
+    // math. Clamped to viewport edges on all sides.
+    const x = Math.max(0, Math.min(clientX - INSTANT_ANNOTATION_SIZE / 2, window.innerWidth - INSTANT_ANNOTATION_SIZE));
+    const y = Math.max(
+      0,
+      Math.min(clientY - INSTANT_ANNOTATION_SIZE / 2, window.innerHeight - INSTANT_ANNOTATION_SIZE),
+    );
+    const pointRect = new DOMRect(x, y, INSTANT_ANNOTATION_SIZE, INSTANT_ANNOTATION_SIZE);
+
+    // Resolve the anchor element and build the annotation payload.
+    // We also derive the capture rect from the anchor element's bounding box
+    // (clamped to the viewport) so enableScreenshot produces a useful image
+    // instead of a postage stamp.
+    const { annotation, anchorBounds } = this.buildAnnotation(pointRect);
+
+    // Use the anchor element's bounding box (clamped to viewport) for
+    // screenshot capture so reviewers get meaningful context, not a 20×20 px
+    // postage stamp.
+    const captureRect = clampToViewport(anchorBounds);
+
+    // Create a visual indicator at the click point
+    this.drawingRect?.remove();
+    this.drawingRect = el("div", {
+      style: /* css */ `
+        position:fixed;
+        left:${x}px;
+        top:${y}px;
+        width:${INSTANT_ANNOTATION_SIZE}px;
+        height:${INSTANT_ANNOTATION_SIZE}px;
+        border:2px solid ${this.colors.accent};
+        background:${this.colors.accent}12;
+        pointer-events:none;
+        border-radius:8px;
+        box-shadow:0 0 16px ${this.colors.accentGlow};
+      `,
+    });
+    this.drawingRect.setAttribute("data-tcpinpoint-ignore", "true");
+    this.overlay?.appendChild(this.drawingRect);
+
+    await this.openForm(annotation, pointRect, captureRect);
+
+    // Instant flow: always deactivate on popup close — unlike the draw flow
+    // where cancel keeps the session alive so the user can re-draw, there is
+    // no draw phase to return to here. Leaving the overlay, scroll-lock and
+    // toolbar up after cancel strands the user in a mode they never opted into.
+    this.drawingRect?.remove();
+    this.drawingRect = null;
+    this.deactivate();
+  }
+
+  /**
+   * Open the feedback form for a selection as one popup session (see
+   * `PopupSession`); it submits through `runSubmission`. Resolves null when
+   * the user cancels.
+   */
+  private openForm(
+    annotation: AnnotationPayload,
+    rect: DOMRect,
+    captureRect: DOMRect = rect,
+  ): ReturnType<Popup["show"]> {
+    const session = newPopupSession();
+    const shown = this.popup.show(
+      rect,
+      (formResult) => this.runSubmission(annotation, formResult, captureRect, session),
+      this.toolbarInsets(),
+    );
+    this.revealSelection(rect);
+    return shown;
+  }
+
+  /**
+   * Phones: the feedback sheet covers the bottom of the screen. Scroll the
+   * page so the selection stays visible above it — the highlight is fixed,
+   * so it moves by the same amount. Never scrolls the selection's top under
+   * the toolbar.
+   */
+  private revealSelection(rect: DOMRect): void {
+    const sheetTop = this.popup.sheetTop;
+    if (sheetTop === null || !this.drawingRect) return;
+    const wanted = Math.min(rect.bottom + 16 - sheetTop, rect.top - 72);
+    if (wanted <= 0) return;
+    const before = window.scrollY;
+    window.scrollBy({ top: wanted, behavior: "instant" });
+    this.drawingRect.style.top = `${rect.top - (window.scrollY - before)}px`;
+  }
+
+  /**
+   * Submit handler passed into `popup.show()`. Captures the screenshot once
+   * (cached across retries in the popup `session`, like its `clientId`) and
+   * emits `annotation:complete` on the bus, then
+   * waits for one of three terminal signals:
+   *
+   * - `feedback:sent` — resolve (popup closes).
+   * - `feedback:error` — reject with the genuine error (popup restores for
+   *   retry; the launcher surfaces the error to the host).
+   * - `submission:cancelled` — reject as a silent abort (popup restores; no
+   *   error is surfaced — e.g. the user cancelled the identity prompt).
+   *
+   * Submissions are serialized by the popup guard (`this.popup.isOpen`),
+   * so exactly one `runSubmission` is ever live — the global outcome events
+   * cannot cross-wire between submissions and need no correlation id.
+   */
+  private async runSubmission(
+    annotation: AnnotationPayload,
+    formResult: { type: FeedbackType; message: string },
+    rectBounds: DOMRect,
+    session: PopupSession,
+  ): Promise<void> {
+    // Screenshot capture is the slow part. Capture once and reuse the
+    // cached data URL + region on every retry — re-running html2canvas-pro after
+    // each failed submit would punish the user for a network blip.
+    if (session.screenshot === undefined) {
+      // The rect is in viewport coordinates of the selection moment — follow
+      // any scroll since (revealSelection) so the capture frames the same content.
+      session.screenshot = await this.maybeCapture(
+        new DOMRect(
+          rectBounds.x + annotation.scrollX - window.scrollX,
+          rectBounds.y + annotation.scrollY - window.scrollY,
+          rectBounds.width,
+          rectBounds.height,
+        ),
+      );
+    }
+    const capture = session.screenshot;
+
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        unsubSent();
+        unsubError();
+        unsubCancelled();
+        this.rejectPendingSubmission = null;
+      };
+      const unsubSent = this.bus.on("feedback:sent", () => {
+        cleanup();
+        resolve();
+      });
+      const unsubError = this.bus.on("feedback:error", (err) => {
+        cleanup();
+        reject(err);
+      });
+      const unsubCancelled = this.bus.on("submission:cancelled", () => {
+        cleanup();
+        // Silent abort — the popup restores but no error is surfaced.
+        reject(new Error("Feedback submission cancelled"));
+      });
+
+      // Expose the reject handle so `destroy()` mid-submit can settle this
+      // promise instead of leaving the awaiting closure hung past teardown.
+      this.rejectPendingSubmission = (reason) => {
+        cleanup();
+        reject(reason);
+      };
+
+      this.bus.emit("annotation:complete", {
+        annotation,
+        type: formResult.type,
+        message: formResult.message,
+        clientId: session.clientId,
+        screenshotDataUrl: capture?.dataUrl ?? null,
+        screenshotRegion: capture?.region ?? null,
+      });
+    });
+  }
+
+  /**
+   * Build an AnnotationPayload from a drawn rectangle.
+   * Temporarily hides the overlay to access the real DOM underneath.
+   */
+  private buildAnnotation(rectBounds: DOMRect): { annotation: AnnotationPayload; anchorBounds: DOMRect } {
+    // Temporarily hide overlay to find the real element underneath
+    if (this.overlay) this.overlay.style.pointerEvents = "none";
+    const anchorElement = findAnchorElement(rectBounds);
+    if (this.overlay) this.overlay.style.pointerEvents = "auto";
+
+    const anchor = generateAnchor(anchorElement);
+    const anchorBounds = anchorElement.getBoundingClientRect();
+    const rect = rectToPercentages(rectBounds, anchorBounds);
+
+    const annotation = {
+      anchor,
+      rect,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      viewportW: window.innerWidth,
+      viewportH: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio,
+    };
+    return { annotation, anchorBounds };
+  }
+  destroy(): void {
+    this.deactivate();
+    this.unregisterEscapeLayer();
+    // Settle an in-flight submission BEFORE tearing down the popup, so the
+    // `runSubmission` promise cannot outlive teardown. The launcher's
+    // `destroy()` also calls `bus.removeAll()`, which would otherwise strip
+    // the terminal-event listeners and leave the promise — and the base64
+    // screenshot it retains — hung forever.
+    this.rejectPendingSubmission?.(new Error("Annotator destroyed during submission"));
+    this.popup.destroy();
+  }
+}

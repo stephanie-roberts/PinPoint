@@ -1,0 +1,688 @@
+import { MemoryStore } from "@tc-pinpoint/adapter-memory";
+import {
+  type CommentResponse,
+  type FeedbackResponse,
+  type FeedbackResponseList,
+  MAX_COMMENTS_PER_FEEDBACK,
+  StoreValueTooLongError,
+  type TcPinpointStore,
+} from "@tc-pinpoint/core";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createTcPinpointHandler,
+  type TcPinpointAccessControl,
+  type TcPinpointAuthorizationContext,
+  type TcPinpointHandler,
+  type TcPinpointLogger,
+} from "../src/index.js";
+import { validPayloadNoAnnotations } from "./fixtures.js";
+
+const ENDPOINT = "http://localhost/api/tcpinpoint";
+const API_KEY = "a-secret-key";
+const PROJECT = validPayloadNoAnnotations.projectName;
+const BEARER = { Authorization: `Bearer ${API_KEY}` };
+
+function request(method: string, body: unknown, headers: Record<string, string> = {}): Request {
+  return new Request(ENDPOINT, {
+    method,
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
+function listRequest(headers: Record<string, string> = {}): Request {
+  return new Request(`${ENDPOINT}?projectName=${PROJECT}`, { headers });
+}
+
+let clientIds = 0;
+
+/** A comment POST body for `feedbackId` — a fresh clientId unless overridden. */
+function commentBody(feedbackId: string, overrides: Record<string, unknown> = {}) {
+  clientIds += 1;
+  return {
+    projectName: PROJECT,
+    feedbackId,
+    body: "Still reproducible after the deploy",
+    authorName: "Bob",
+    authorEmail: "bob@example.com",
+    authorRole: "client",
+    clientId: `comment-${clientIds}`,
+    ...overrides,
+  };
+}
+
+async function createFeedback(
+  handler: TcPinpointHandler,
+  headers: Record<string, string> = {},
+  clientId = validPayloadNoAnnotations.clientId,
+) {
+  const response = await handler.POST(request("POST", { ...validPayloadNoAnnotations, clientId }, headers));
+  expect(response.status).toBe(201);
+  return (await response.json()) as FeedbackResponse;
+}
+
+async function postComment(
+  handler: TcPinpointHandler,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+): Promise<CommentResponse> {
+  const response = await handler.POST(request("POST", body, headers));
+  expect(response.status).toBe(201);
+  return (await response.json()) as CommentResponse;
+}
+
+async function list(handler: TcPinpointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponseList> {
+  const response = await handler.GET(listRequest(headers));
+  expect(response.status).toBe(200);
+  return (await response.json()) as FeedbackResponseList;
+}
+
+/** A hand-written store that predates comments: no `addComment` / `deleteComment`, no `comments` on its records. */
+function storeWithoutComments(): TcPinpointStore {
+  const memory = new MemoryStore();
+  const withoutThread = <Record extends { comments?: unknown }>({ comments: _, ...record }: Record) => record;
+  return {
+    createFeedback: async (data) => withoutThread(await memory.createFeedback(data)),
+    getFeedbacks: async (query) => {
+      const page = await memory.getFeedbacks(query);
+      return { ...page, feedbacks: page.feedbacks.map(withoutThread) };
+    },
+    findByClientId: async (clientId) => {
+      const record = await memory.findByClientId(clientId);
+      return record && withoutThread(record);
+    },
+    updateFeedback: async (id, data) => withoutThread(await memory.updateFeedback(id, data)),
+    deleteFeedback: (id) => memory.deleteFeedback(id),
+    deleteAllFeedbacks: (projectName) => memory.deleteAllFeedbacks(projectName),
+    verifyProjectOwnership: (id, projectName) => memory.verifyProjectOwnership(id, projectName),
+  };
+}
+
+const silentLogger = () => ({ error: vi.fn<TcPinpointLogger["error"]>() });
+
+describe("comments — POST", () => {
+  it("adds a comment, answers it without its clientId, and serves the thread oldest first", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore() });
+    const feedback = await createFeedback(handler);
+
+    const first = await postComment(handler, commentBody(feedback.id, { body: "  first  " }));
+    const second = await postComment(handler, commentBody(feedback.id, { body: "second" }));
+
+    expect(first).toEqual({
+      id: expect.any(String),
+      feedbackId: feedback.id,
+      body: "first",
+      authorName: "Bob",
+      authorEmail: "bob@example.com",
+      authorRole: "client",
+      createdAt: expect.any(String),
+    });
+    const listed = await list(handler);
+    expect(listed.capabilities).toEqual({ comments: true, deleteComments: true });
+    expect(listed.feedbacks[0]?.comments?.map((c) => c.id)).toEqual([first.id, second.id]);
+    expect(listed.feedbacks[0]?.comments?.[0]).not.toHaveProperty("clientId");
+  });
+
+  it("stores a retried post once and refuses a clientId already used on another feedback", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store });
+    const feedback = await createFeedback(handler);
+    const other = await createFeedback(handler, {}, "other");
+    const body = commentBody(feedback.id);
+
+    const first = await postComment(handler, body);
+    const replay = await postComment(handler, body);
+    const hijack = await handler.POST(request("POST", { ...body, feedbackId: other.id }));
+
+    expect(replay).toEqual(first);
+    expect(hijack.status).toBe(409);
+    expect(await hijack.json()).toEqual({ error: "clientId already used on another feedback" });
+    expect((await store.findByClientId("uuid-123"))?.comments).toHaveLength(1);
+    expect((await store.findByClientId("other"))?.comments).toEqual([]);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ["a whitespace-only body", { body: "   " }],
+    ["a body over 5000 characters", { body: "x".repeat(5001) }],
+    ["an invalid email", { authorEmail: "not-an-email" }],
+    ["an empty author name", { authorName: "" }],
+    ["an unknown role", { authorRole: "owner" }],
+    ["a clientId outside [a-zA-Z0-9_-]", { clientId: "../escape" }],
+    ["no clientId", { clientId: undefined }],
+  ])("answers 400 to %s and stores nothing", async (_label, overrides) => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store });
+    const feedback = await createFeedback(handler);
+
+    const response = await handler.POST(request("POST", commentBody(feedback.id, overrides)));
+
+    expect(response.status).toBe(400);
+    expect((await store.findByClientId("uuid-123"))?.comments).toEqual([]);
+  });
+
+  it("accepts an author without an email and stamps client when no role is sent", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore() });
+    const feedback = await createFeedback(handler);
+    const { authorRole: _, ...withoutRole } = commentBody(feedback.id, { authorEmail: "" });
+
+    const created = await postComment(handler, withoutRole);
+
+    expect(created).toMatchObject({ authorEmail: "", authorRole: "client" });
+  });
+
+  it("stamps client when no role is sent, even by a caller who could speak as the team", async () => {
+    const keyed = createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY });
+    const staffed = createTcPinpointHandler({
+      store: new MemoryStore(),
+      access: { authenticate: () => ({ id: "staff" }), canCommentAsTeam: () => true },
+    });
+
+    for (const [handler, headers] of [
+      [keyed, BEARER],
+      [staffed, {}],
+    ] as const) {
+      const feedback = await createFeedback(handler, headers);
+      const { authorRole: _, ...withoutRole } = commentBody(feedback.id);
+      expect((await postComment(handler, withoutRole, headers)).authorRole).toBe("client");
+    }
+  });
+
+  it("answers 404 when the store itself finds no feedback, without verifyProjectOwnership", async () => {
+    // Optional on the contract, and the apiKey policy starts without it: the store's own miss answers.
+    const store: TcPinpointStore = Object.assign(Object.create(new MemoryStore()), {
+      verifyProjectOwnership: undefined,
+    });
+    const logger = silentLogger();
+    const handler = createTcPinpointHandler({ store, apiKey: API_KEY, logger });
+
+    const response = await handler.POST(request("POST", commentBody("does-not-exist")));
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Feedback not found" });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for an unknown feedback and for another project's, storing nothing", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store });
+    const feedback = await createFeedback(handler);
+
+    const unknown = await handler.POST(request("POST", commentBody("does-not-exist")));
+    const foreign = await handler.POST(request("POST", commentBody(feedback.id, { projectName: "someone-else" })));
+
+    expect(unknown.status).toBe(404);
+    expect(foreign.status).toBe(404);
+    expect(await foreign.json()).toEqual({ error: "Feedback not found" });
+    expect((await store.findByClientId("uuid-123"))?.comments).toEqual([]);
+  });
+
+  it(`answers 409 once the thread holds ${MAX_COMMENTS_PER_FEEDBACK} client comments — and still takes the team's`, async () => {
+    const store = new MemoryStore();
+    // The widget's setup: anyone reads and posts, the key holder speaks as the team.
+    const handler = createTcPinpointHandler({ store, apiKey: API_KEY, publicEndpoints: ["GET", "POST", "OPTIONS"] });
+    const feedback = await createFeedback(handler);
+    for (let i = 0; i < MAX_COMMENTS_PER_FEEDBACK; i++) await postComment(handler, commentBody(feedback.id));
+
+    const spam = await handler.POST(request("POST", commentBody(feedback.id)));
+    const answer = await handler.POST(request("POST", commentBody(feedback.id, { authorRole: "team" }), BEARER));
+
+    expect(spam.status).toBe(409);
+    expect(await spam.json()).toEqual({
+      error: `Too many client comments on this feedback (max ${MAX_COMMENTS_PER_FEEDBACK})`,
+    });
+    expect(answer.status).toBe(201);
+    expect(await answer.json()).toMatchObject({ authorRole: "team" });
+  });
+
+  it("answers 422 to a comment the store cannot hold, logged for the operator", async () => {
+    const store = new MemoryStore();
+    store.addComment = () => Promise.reject(new StoreValueTooLongError());
+    const logger = silentLogger();
+    const handler = createTcPinpointHandler({ store, logger });
+    const feedback = await createFeedback(handler);
+
+    const response = await handler.POST(request("POST", commentBody(feedback.id)));
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "A value is too long for this server's database" });
+    expect(logger.error).toHaveBeenCalledWith(
+      "[tcpinpoint] A value is too long for the store",
+      expect.objectContaining({ error: expect.any(StoreValueTooLongError) }),
+    );
+  });
+
+  it("reports a store failure as a logged 500", async () => {
+    const store = new MemoryStore();
+    const failure = new Error("connection refused");
+    store.addComment = () => Promise.reject(failure);
+    const logger = silentLogger();
+    const handler = createTcPinpointHandler({ store, logger });
+    const feedback = await createFeedback(handler);
+
+    const response = await handler.POST(request("POST", commentBody(feedback.id)));
+
+    expect(response.status).toBe(500);
+    expect(logger.error).toHaveBeenCalledWith("[tcpinpoint] Failed to add comment", {
+      error: failure,
+      method: "POST",
+      path: "/api/tcpinpoint",
+    });
+  });
+});
+
+describe("comments — the team role", () => {
+  async function claimTeam(handler: TcPinpointHandler, headers: Record<string, string> = {}) {
+    const feedback = await createFeedback(handler, headers);
+    return (await postComment(handler, commentBody(feedback.id, { authorRole: "team" }), headers)).authorRole;
+  }
+
+  it("is kept for a request carrying the apiKey", async () => {
+    expect(await claimTeam(createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY }), BEARER)).toBe(
+      "team",
+    );
+  });
+
+  it("is downgraded to client on the public POST, with no key, a wrong key, or no apiKey configured", async () => {
+    expect(await claimTeam(createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY }))).toBe("client");
+    expect(
+      await claimTeam(createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY }), {
+        Authorization: "Bearer wrong-key",
+      }),
+    ).toBe("client");
+    expect(await claimTeam(createTcPinpointHandler({ store: new MemoryStore() }), BEARER)).toBe("client");
+  });
+
+  describe("under a custom access policy", () => {
+    const access = (overrides: Partial<TcPinpointAccessControl<{ staff: boolean }>> = {}) => ({
+      authenticate: (req: Request) => ({ staff: req.headers.get("x-staff") === "yes" }),
+      ...overrides,
+    });
+    const handlerWith = (overrides?: Partial<TcPinpointAccessControl<{ staff: boolean }>>) =>
+      createTcPinpointHandler({ store: new MemoryStore(), access: access(overrides) });
+
+    it("follows canCommentAsTeam", async () => {
+      const canCommentAsTeam = ({ staff }: { staff: boolean }) => staff;
+      expect(await claimTeam(handlerWith({ canCommentAsTeam }), { "x-staff": "yes" })).toBe("team");
+      expect(await claimTeam(handlerWith({ canCommentAsTeam }))).toBe("client");
+    });
+
+    it("is refused when the policy tells no team apart", async () => {
+      expect(await claimTeam(handlerWith())).toBe("client");
+      expect(await claimTeam(handlerWith(), { "x-staff": "yes" })).toBe("client");
+    });
+
+    it("defaults to whoever may read reviewer emails, when the policy says who does", async () => {
+      expect(await claimTeam(handlerWith({ canReadAuthorEmail: ({ staff }) => staff }))).toBe("client");
+      expect(await claimTeam(handlerWith({ canReadAuthorEmail: ({ staff }) => staff }), { "x-staff": "yes" })).toBe(
+        "team",
+      );
+    });
+
+    it("is only asked for a comment that claims the role", async () => {
+      const canCommentAsTeam = vi.fn(() => true);
+      const handler = handlerWith({ canCommentAsTeam });
+      const feedback = await createFeedback(handler);
+
+      await postComment(handler, commentBody(feedback.id));
+      await list(handler);
+
+      expect(canCommentAsTeam).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("comments — email redaction", () => {
+  /** A feedback with a team reply, both carrying an email, behind an apiKey with a public GET. */
+  async function threadWithEmails() {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store, apiKey: API_KEY, publicEndpoints: ["GET", "POST", "OPTIONS"] });
+    const feedback = await createFeedback(handler);
+    await postComment(handler, commentBody(feedback.id, { authorRole: "team" }), BEARER);
+    return { store, handler, feedback };
+  }
+
+  it("blanks comment emails for a reader who may not read the feedback's", async () => {
+    const { handler } = await threadWithEmails();
+
+    const anonymous = (await list(handler)).feedbacks[0];
+    const authenticated = (await list(handler, BEARER)).feedbacks[0];
+
+    expect(anonymous?.authorEmail).toBe("");
+    expect(anonymous?.comments?.[0]?.authorEmail).toBe("");
+    expect(authenticated?.comments?.[0]?.authorEmail).toBe("bob@example.com");
+  });
+
+  it("echoes a new comment's own email to its author, like a new feedback's", async () => {
+    const { handler, feedback } = await threadWithEmails();
+
+    const created = await postComment(handler, commentBody(feedback.id, { authorEmail: "carol@example.com" }));
+
+    expect(created.authorEmail).toBe("carol@example.com");
+  });
+
+  it("keeps the thread's emails out of a replayed feedback POST, which echoes only the submitter's", async () => {
+    const { handler } = await threadWithEmails();
+
+    const replay = await createFeedback(handler);
+
+    expect(replay.authorEmail).toBe(validPayloadNoAnnotations.authorEmail);
+    expect(replay.comments?.[0]?.authorEmail).toBe("");
+  });
+
+  it("blanks comment emails in a PATCH answer to an unauthenticated caller", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore(), requireAuthForDestructive: false });
+    const feedback = await createFeedback(handler);
+    await postComment(handler, commentBody(feedback.id));
+
+    const response = await handler.PATCH(
+      request("PATCH", { id: feedback.id, projectName: PROJECT, status: "resolved" }),
+    );
+
+    expect(((await response.json()) as FeedbackResponse).comments?.[0]?.authorEmail).toBe("");
+  });
+
+  it("follows canReadAuthorEmail under a custom access policy, POST answers included", async () => {
+    const handler = createTcPinpointHandler({
+      store: new MemoryStore(),
+      access: { authenticate: () => ({ id: "visitor" }), canReadAuthorEmail: () => false },
+    });
+    const feedback = await createFeedback(handler);
+
+    const created = await postComment(handler, commentBody(feedback.id));
+
+    expect(created.authorEmail).toBe("");
+    expect((await list(handler)).feedbacks[0]?.comments?.[0]?.authorEmail).toBe("");
+  });
+});
+
+describe("comments — DELETE", () => {
+  async function seedThread(handler: TcPinpointHandler) {
+    const feedback = await createFeedback(handler);
+    const doomed = await postComment(handler, commentBody(feedback.id));
+    const kept = await postComment(handler, commentBody(feedback.id));
+    return { feedback, doomed, kept };
+  }
+
+  it("deletes one comment, keeps the feedback and the rest of the thread, and requires the apiKey", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY });
+    const { feedback, doomed, kept } = await seedThread(handler);
+    const body = { projectName: PROJECT, feedbackId: feedback.id, commentId: doomed.id };
+
+    expect((await handler.DELETE(request("DELETE", body))).status).toBe(401);
+    const response = await handler.DELETE(request("DELETE", body, BEARER));
+
+    expect(await response.json()).toEqual({ deleted: true });
+    const listed = await list(handler, BEARER);
+    expect(listed.feedbacks.map((f) => f.id)).toEqual([feedback.id]);
+    expect(listed.feedbacks[0]?.comments?.map((c) => c.id)).toEqual([kept.id]);
+  });
+
+  it("answers 404 for a comment of another thread or an unknown one, and for another project", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store, requireAuthForDestructive: false });
+    const { doomed } = await seedThread(handler);
+    const other = await createFeedback(handler, {}, "other");
+
+    const crossThread = await handler.DELETE(
+      request("DELETE", { projectName: PROJECT, feedbackId: other.id, commentId: doomed.id }),
+    );
+    const unknown = await handler.DELETE(
+      request("DELETE", { projectName: PROJECT, feedbackId: doomed.feedbackId, commentId: "nope" }),
+    );
+    const foreign = await handler.DELETE(
+      request("DELETE", { projectName: "someone-else", feedbackId: doomed.feedbackId, commentId: doomed.id }),
+    );
+
+    expect(crossThread.status).toBe(404);
+    expect(await crossThread.json()).toEqual({ error: "Comment not found" });
+    expect(unknown.status).toBe(404);
+    expect(await foreign.json()).toEqual({ error: "Feedback not found" });
+    expect((await store.findByClientId("uuid-123"))?.comments).toHaveLength(2);
+  });
+
+  it("answers 400 to a comment delete missing its feedbackId, never deleting the feedback", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store, requireAuthForDestructive: false });
+    const { feedback, doomed } = await seedThread(handler);
+
+    const response = await handler.DELETE(
+      request("DELETE", { id: feedback.id, projectName: PROJECT, commentId: doomed.id }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await store.findByClientId("uuid-123")).not.toBeNull();
+  });
+});
+
+describe("comments — a store without them", () => {
+  it("serves empty threads, advertises no comments, and answers comment writes with 501", async () => {
+    const handler = createTcPinpointHandler({ store: storeWithoutComments(), requireAuthForDestructive: false });
+    const feedback = await createFeedback(handler);
+
+    const listed = await list(handler);
+    const patched = await handler.PATCH(
+      request("PATCH", { id: feedback.id, projectName: PROJECT, status: "resolved" }),
+    );
+    const posted = await handler.POST(request("POST", commentBody(feedback.id)));
+    const deleted = await handler.DELETE(
+      request("DELETE", { projectName: PROJECT, feedbackId: feedback.id, commentId: "c1" }),
+    );
+
+    expect(feedback.comments).toEqual([]);
+    expect(listed.capabilities).toEqual({ comments: false, deleteComments: false });
+    expect(listed.feedbacks[0]?.comments).toEqual([]);
+    expect(((await patched.json()) as FeedbackResponse).comments).toEqual([]);
+    expect(posted.status).toBe(501);
+    expect(await posted.json()).toEqual({ error: "Comments are not supported by this store" });
+    expect(deleted.status).toBe(501);
+  });
+});
+
+describe("comments — a store that cannot delete them", () => {
+  it("advertises replies but not their deletion, and answers a comment delete with 501", async () => {
+    const store = new MemoryStore();
+    // Append-only threads: replies are kept, never deleted.
+    Object.assign(store, { deleteComment: undefined });
+    const handler = createTcPinpointHandler({ store, requireAuthForDestructive: false });
+    const feedback = await createFeedback(handler);
+    const reply = await postComment(handler, commentBody(feedback.id));
+
+    const listed = await list(handler);
+    const deleted = await handler.DELETE(
+      request("DELETE", { projectName: PROJECT, feedbackId: feedback.id, commentId: reply.id }),
+    );
+
+    expect(listed.capabilities).toEqual({ comments: true, deleteComments: false });
+    expect(deleted.status).toBe(501);
+  });
+});
+
+describe("comments — authorization", () => {
+  it("asks authorize about createComment and deleteComment with their targets, and stores nothing on a refusal", async () => {
+    const store = new MemoryStore();
+    const authorize = vi.fn(
+      ({ action }: TcPinpointAuthorizationContext<{ id: string }>) => !action.endsWith("Comment"),
+    );
+    const handler = createTcPinpointHandler({ store, access: { authenticate: () => ({ id: "u" }), authorize } });
+    const feedback = await createFeedback(handler);
+    const kept = await store.addComment(feedback.id, {
+      body: "b",
+      authorName: "a",
+      authorEmail: "",
+      authorRole: "client",
+      clientId: "seeded",
+    });
+
+    const posted = await handler.POST(request("POST", commentBody(feedback.id)));
+    const deleted = await handler.DELETE(
+      request("DELETE", { projectName: PROJECT, feedbackId: feedback.id, commentId: kept.id }),
+    );
+
+    expect(posted.status).toBe(403);
+    expect(deleted.status).toBe(403);
+    // Dry runs, which fill in the POST answers' permissions, ask about these actions too: leave them out.
+    const decisions = authorize.mock.calls.map(([context]) => context).filter((context) => !context.dryRun);
+    expect(decisions).toEqual([
+      expect.objectContaining({ action: "create", projectName: PROJECT }),
+      expect.objectContaining({ action: "createComment", projectName: PROJECT, feedbackId: feedback.id }),
+      expect.objectContaining({
+        action: "deleteComment",
+        projectName: PROJECT,
+        feedbackId: feedback.id,
+        commentId: kept.id,
+      }),
+    ]);
+    expect((await store.findByClientId("uuid-123"))?.comments).toEqual([kept]);
+  });
+
+  it("guards comment writes against CSRF like every other mutation", async () => {
+    const handler = createTcPinpointHandler({
+      store: new MemoryStore(),
+      access: { authenticate: () => ({ id: "u" }) },
+    });
+    const feedback = await createFeedback(handler);
+
+    const response = await handler.POST(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(commentBody(feedback.id)),
+      }),
+    );
+
+    expect(response.status).toBe(415);
+  });
+});
+
+describe("comments — beforeComment", () => {
+  interface Member {
+    name: string;
+    email: string;
+    project: string;
+  }
+  const MALLORY: Member = { name: "Mallory", email: "mallory@corp.example", project: PROJECT };
+
+  /** The recipes' shape: the author and the project come from the session, secrets leave the body. */
+  function stampingHandler(store: TcPinpointStore, authorize = vi.fn(() => true)) {
+    return createTcPinpointHandler<Member>({
+      store,
+      access: { authenticate: () => MALLORY, authorize, canCommentAsTeam: () => false },
+      beforeComment: (input, { principal }) => ({
+        ...input,
+        projectName: principal.project,
+        authorName: principal.name,
+        authorEmail: principal.email,
+        body: input.body.replace(/token=\S+/g, "token=[redacted]"),
+      }),
+    });
+  }
+
+  it("stores the reply it returns — the session's author, the scrubbed body — never the one sent", async () => {
+    const store = new MemoryStore();
+    const handler = stampingHandler(store);
+    const feedback = await createFeedback(handler);
+
+    const created = await postComment(
+      handler,
+      commentBody(feedback.id, {
+        body: "Ship it token=abc123",
+        authorName: "Alice CEO",
+        authorEmail: "ceo@corp.example",
+      }),
+    );
+
+    const expected = { authorName: "Mallory", authorEmail: "mallory@corp.example", body: "Ship it token=[redacted]" };
+    // The answer blanks the email: this policy lets no one read reviewer emails.
+    expect(created).toMatchObject({ ...expected, authorEmail: "" });
+    expect((await store.findByClientId("uuid-123"))?.comments?.[0]).toMatchObject(expected);
+  });
+
+  it("runs before authorize, which sees the project it returns — another tenant's feedback stays out of reach", async () => {
+    const store = new MemoryStore();
+    const authorize = vi.fn(() => true);
+    const handler = stampingHandler(store, authorize);
+    const foreignResponse = await createTcPinpointHandler({ store }).POST(
+      request("POST", { ...validPayloadNoAnnotations, projectName: "other-tenant", clientId: "foreign" }),
+    );
+    const foreign = (await foreignResponse.json()) as FeedbackResponse;
+
+    const response = await handler.POST(request("POST", commentBody(foreign.id, { projectName: "other-tenant" })));
+
+    expect(response.status).toBe(404);
+    expect(authorize).toHaveBeenCalledWith(expect.objectContaining({ action: "createComment", projectName: PROJECT }));
+    expect((await store.findByClientId("foreign"))?.comments).toEqual([]);
+  });
+
+  it("leaves the team role a claim the policy must vouch for", async () => {
+    const handler = createTcPinpointHandler({
+      store: new MemoryStore(),
+      apiKey: API_KEY,
+      beforeComment: (input) => ({ ...input, authorRole: "team" }),
+    });
+    const feedback = await createFeedback(handler);
+
+    expect((await postComment(handler, commentBody(feedback.id))).authorRole).toBe("client");
+    expect((await postComment(handler, commentBody(feedback.id), BEARER)).authorRole).toBe("team");
+  });
+
+  it("answers a logged 500 and stores nothing when it throws", async () => {
+    const store = new MemoryStore();
+    const failure = new Error("session store down");
+    const logger = silentLogger();
+    const handler = createTcPinpointHandler({
+      store,
+      logger,
+      beforeComment: () => {
+        throw failure;
+      },
+    });
+    const feedback = await createFeedback(handler);
+
+    const response = await handler.POST(request("POST", commentBody(feedback.id)));
+
+    expect(response.status).toBe(500);
+    expect(logger.error).toHaveBeenCalledWith(
+      "[tcpinpoint] Failed to add comment",
+      expect.objectContaining({ error: failure }),
+    );
+    expect((await store.findByClientId("uuid-123"))?.comments).toEqual([]);
+  });
+});
+
+describe("comments — a team policy", () => {
+  interface Staffer {
+    isStaff: boolean;
+  }
+  const policy = (): TcPinpointAccessControl<Staffer> => ({
+    authenticate: (request) => ({ isStaff: request.headers.get("x-staff") === "yes" }),
+    // Everyone submits, reads and replies; only staff triage and delete.
+    authorize: ({ principal, action }) =>
+      principal.isStaff || action === "create" || action === "list" || action === "createComment",
+    canReadAuthorEmail: (principal) => principal.isStaff,
+    // Optional here: it would default to canReadAuthorEmail.
+    canCommentAsTeam: (principal) => principal.isStaff,
+  });
+
+  it("lets a signed-in reviewer reply, but not triage, delete or wipe the project", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store, access: policy() });
+    const feedback = await createFeedback(handler);
+    const reply = await postComment(handler, commentBody(feedback.id));
+    const staff = { "x-staff": "yes" };
+
+    const refused = [
+      await handler.PATCH(request("PATCH", { id: feedback.id, projectName: PROJECT, status: "resolved" })),
+      await handler.DELETE(request("DELETE", { projectName: PROJECT, feedbackId: feedback.id, commentId: reply.id })),
+      await handler.DELETE(request("DELETE", { id: feedback.id, projectName: PROJECT })),
+      await handler.DELETE(request("DELETE", { projectName: PROJECT, deleteAll: true })),
+    ];
+    const listed = await list(handler);
+
+    expect(refused.map(({ status }) => status)).toEqual([403, 403, 403, 403]);
+    expect(listed.permissions).toEqual({ canDeleteAll: false });
+    expect(listed.feedbacks[0]?.comments).toHaveLength(1);
+    expect((await handler.DELETE(request("DELETE", { projectName: PROJECT, deleteAll: true }, staff))).status).toBe(
+      200,
+    );
+  });
+});

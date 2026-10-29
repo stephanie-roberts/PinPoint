@@ -1,0 +1,51 @@
+{
+  "name": "@tc-pinpoint/adapter-localstorage",
+  "version": "0.5.5",
+  "description": "localStorage adapter for PinPoint — client-side feedback persistence without a server",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && node ../../scripts/fix-dts.mjs dist",
+    "check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "tcpinpoint",
+    "localstorage",
+    "adapter",
+    "feedback",
+    "client-side",
+    "no-server",
+    "demo",
+    "typescript"
+  ],
+  "author": "Stephanie Lennox",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@tc-pinpoint/core": "*"
+  }
+}

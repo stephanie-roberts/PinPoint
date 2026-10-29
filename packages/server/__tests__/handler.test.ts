@@ -1,0 +1,511 @@
+import { MemoryStore } from "@tc-pinpoint/adapter-memory";
+import {
+  ANCHOR_ELEMENT_ID_MAX,
+  ANCHOR_ELEMENT_TAG_MAX,
+  type FeedbackRecord,
+  IDENTITY_FIELD_MAX_LENGTH,
+} from "@tc-pinpoint/core";
+import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_MAX_BODY_BYTES, MAX_VALIDATION_ISSUES } from "../src/constants.js";
+import { createTcPinpointHandler, type TcPinpointLogger, type TcPinpointStore } from "../src/index.js";
+import { validAnnotation, validPayloadNoAnnotations } from "./fixtures.js";
+
+const ENDPOINT = "http://localhost/api/tcpinpoint";
+const API_KEY = "a-secret-key";
+
+function request(method: string, body?: unknown, headers: Record<string, string> = {}): Request {
+  return new Request(ENDPOINT, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+}
+
+function listRequest(headers: Record<string, string> = {}): Request {
+  return new Request(`${ENDPOINT}?projectName=${validPayloadNoAnnotations.projectName}`, { headers });
+}
+
+const silentLogger = () => ({ error: vi.fn<TcPinpointLogger["error"]>() });
+
+describe("createTcPinpointHandler — any store", () => {
+  it("serves the whole feedback lifecycle over a MemoryStore", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY });
+    const auth = { Authorization: `Bearer ${API_KEY}` };
+
+    const created = await handler.POST(request("POST", validPayloadNoAnnotations));
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as FeedbackRecord;
+
+    const updated = await handler.PATCH(
+      request("PATCH", { id, projectName: validPayloadNoAnnotations.projectName, status: "resolved" }, auth),
+    );
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ id, status: "resolved" });
+
+    const listed = (await (await handler.GET(listRequest(auth))).json()) as { feedbacks: FeedbackRecord[] };
+    expect(listed.feedbacks).toHaveLength(1);
+    expect(listed.feedbacks[0]).not.toHaveProperty("clientId");
+
+    const deleted = await handler.DELETE(
+      request("DELETE", { id, projectName: validPayloadNoAnnotations.projectName }, auth),
+    );
+    expect(await deleted.json()).toEqual({ deleted: true });
+  });
+
+  it("stores every optional field a submission carries, and serves the page filters and pages", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store });
+    const now = "2026-09-29T10:00:00.000Z";
+    const extras = {
+      screenshotDataUrl: "data:image/jpeg;base64,/9j/4AAQ",
+      screenshotRegion: { xPct: 0.1, yPct: 0.2, wPct: 0.3, hPct: 0.4 },
+      diagnostics: {
+        console: [{ level: "error", timestamp: now, message: "boom" }],
+        network: [{ url: "https://api.example.com/cart", method: "GET", status: 500, durationMs: 12, timestamp: now }],
+      },
+    };
+    const submit = async (clientId: string, url: string, urlPattern: string | null, more = {}) => {
+      const body = { ...validPayloadNoAnnotations, clientId, url, urlPattern, ...more };
+      expect((await handler.POST(request("POST", body))).status).toBe(201);
+    };
+    await submit("a", "/orders/42", "/orders/:id", extras);
+    await submit("b", "/orders/43", "/orders/:id");
+    await submit("c", "/home", null);
+    const page = async (query: string) =>
+      (await (
+        await handler.GET(new Request(`${ENDPOINT}?projectName=${validPayloadNoAnnotations.projectName}&${query}`))
+      ).json()) as { feedbacks: FeedbackRecord[]; total: number };
+
+    const { screenshotDataUrl, ...stored } = extras;
+    expect(await store.findByClientId("a")).toMatchObject({
+      ...stored,
+      url: "/orders/42",
+      urlPattern: "/orders/:id",
+      screenshotUrl: screenshotDataUrl,
+    });
+    expect((await page("url=/orders/42")).feedbacks.map((f) => f.url)).toEqual(["/orders/42"]);
+    expect((await page("urlPattern=/orders/:id")).total).toBe(2);
+    const [first, second] = [await page("page=1&limit=1"), await page("page=2&limit=1")];
+    expect([first.total, first.feedbacks.length, second.feedbacks.length]).toEqual([3, 1, 1]);
+    expect(second.feedbacks[0]?.id).not.toBe(first.feedbacks[0]?.id);
+  });
+
+  it("refuses to start without a store", () => {
+    expect(() => createTcPinpointHandler({} as { store: TcPinpointStore })).toThrow(/requires a `store`/);
+  });
+});
+
+describe("createTcPinpointHandler — apiKey", () => {
+  it("rejects a wrong key of the same byte length as the real one", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY });
+    const sameLengthKey = `${API_KEY.slice(0, -1)}X`;
+
+    const response = await handler.GET(listRequest({ Authorization: `Bearer ${sameLengthKey}` }));
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Unauthorized" });
+  });
+
+  it.each([
+    "Bearer",
+    "Bearer ",
+    "B",
+    `Bearer ${API_KEY.slice(0, -1)}`,
+    `Bearer ${API_KEY}x`,
+    `Bearer x${API_KEY.slice(1)}`,
+    // Same length, same last byte as the key.
+    `Bearer ${"x".repeat(API_KEY.length - 1)}${API_KEY.slice(-1)}`,
+  ])("refuses Authorization %j, reading nothing and deleting nothing", async (authorization) => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store, apiKey: API_KEY });
+    await handler.POST(request("POST", validPayloadNoAnnotations));
+
+    const list = await handler.GET(listRequest({ Authorization: authorization }));
+    const wipe = await handler.DELETE(
+      request(
+        "DELETE",
+        { projectName: validPayloadNoAnnotations.projectName, deleteAll: true },
+        { Authorization: authorization },
+      ),
+    );
+
+    expect([list.status, wipe.status]).toEqual([401, 401]);
+    expect((await store.getFeedbacks({ projectName: validPayloadNoAnnotations.projectName })).total).toBe(1);
+  });
+
+  it("vouches for no Bearer at all when no apiKey is set, `Bearer undefined` included", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store });
+    const bearer = { Authorization: "Bearer undefined" };
+    const { id } = (await (await handler.POST(request("POST", validPayloadNoAnnotations))).json()) as FeedbackRecord;
+
+    const reply = await handler.POST(
+      request(
+        "POST",
+        {
+          projectName: validPayloadNoAnnotations.projectName,
+          feedbackId: id,
+          body: "Fixed",
+          authorName: "Eve",
+          authorEmail: "eve@example.com",
+          authorRole: "team",
+          clientId: "reply-1",
+        },
+        bearer,
+      ),
+    );
+    const listed = (await (await handler.GET(listRequest(bearer))).json()) as { feedbacks: FeedbackRecord[] };
+
+    expect(((await reply.json()) as { authorRole: string }).authorRole).toBe("client");
+    expect(listed.feedbacks[0]?.authorEmail).toBe("");
+  });
+
+  it("refuses to start in production without an apiKey, naming the ways out", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      expect(() => createTcPinpointHandler({ store: new MemoryStore() })).toThrow(
+        /createTcPinpointHandler: apiKey is required in production/,
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe("createTcPinpointHandler — validation errors", () => {
+  const many = (length: number) => Array.from({ length }, () => ({}));
+
+  it.each<[string, Record<string, unknown>]>([
+    ["annotations", { annotations: many(10_000) }],
+    ["diagnostics.console", { diagnostics: { console: many(10_000), network: [] } }],
+    ["diagnostics.network", { diagnostics: { console: [], network: many(10_000) } }],
+  ])("refuses an oversized %s on its length alone, in one issue", async (field, overrides) => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY });
+
+    const response = await handler.POST(request("POST", { ...validPayloadNoAnnotations, ...overrides }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ errors: [{ field, message: expect.stringMatching(/^Too big/) }] });
+  });
+
+  it("refuses an oversized statuses filter on its length alone", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore() });
+    const statuses = Array.from({ length: 4000 }, () => "x").join(",");
+
+    const response = await handler.GET(
+      new Request(`${ENDPOINT}?projectName=${validPayloadNoAnnotations.projectName}&statuses=${statuses}`),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      errors: [{ field: "statuses", message: expect.stringMatching(/^Too big/) }],
+    });
+  });
+
+  it(`lists at most ${MAX_VALIDATION_ISSUES} issues`, async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore() });
+
+    // Fifty empty annotations: a missing field each, twenty-odd per annotation.
+    const response = await handler.POST(request("POST", { ...validPayloadNoAnnotations, annotations: many(50) }));
+
+    expect(response.status).toBe(400);
+    const { errors } = (await response.json()) as { errors: unknown[] };
+    expect(errors).toHaveLength(MAX_VALIDATION_ISSUES);
+  });
+});
+
+describe("createTcPinpointHandler — screenshots", () => {
+  it.each([
+    "https://attacker.example/beacon.gif",
+    "javascript:alert(1)",
+    "data:text/html;base64,PHNjcmlwdD4=",
+    "data:image/svg+xml;base64,PHN2Zz4=",
+  ])("refuses %s as a screenshot, which a store would serve verbatim as its URL", async (screenshotDataUrl) => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store });
+
+    const response = await handler.POST(request("POST", { ...validPayloadNoAnnotations, screenshotDataUrl }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      errors: [{ field: "screenshotDataUrl", message: "screenshotDataUrl must be a data:image/* base64 URL" }],
+    });
+    expect((await store.getFeedbacks({ projectName: validPayloadNoAnnotations.projectName })).total).toBe(0);
+  });
+});
+
+describe("createTcPinpointHandler — request body size", () => {
+  const CHUNK_BYTES = 64 * 1024;
+  const encode = (body: unknown) => new TextEncoder().encode(JSON.stringify(body));
+  const text = (length: number) => "a".repeat(length);
+
+  /** A request whose body streams in `CHUNK_BYTES` at a time, counting the bytes the handler pulls. */
+  function streamed(method: string, bytes: Uint8Array, headers: Record<string, string> = {}) {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= bytes.length) return controller.close();
+        const chunk = bytes.subarray(pulled, pulled + CHUNK_BYTES);
+        pulled += chunk.length;
+        controller.enqueue(chunk);
+      },
+    });
+    // `duplex` is required for a streamed body, and missing from TypeScript's RequestInit.
+    const init = { method, headers, body, duplex: "half" } as RequestInit;
+    return { request: new Request(ENDPOINT, init), pulled: () => pulled };
+  }
+
+  /** A submission twice the default cap, in a field the validation would only refuse once parsed. */
+  const oversized = () => encode({ ...validPayloadNoAnnotations, message: text(2 * DEFAULT_MAX_BODY_BYTES) });
+
+  /** The largest submission the validation accepts: every field at its cap. */
+  function largestSubmission() {
+    const annotation = {
+      ...validAnnotation,
+      anchor: {
+        cssSelector: text(2000),
+        xpath: text(2000),
+        textSnippet: text(500),
+        elementTag: text(ANCHOR_ELEMENT_TAG_MAX),
+        elementId: text(ANCHOR_ELEMENT_ID_MAX),
+        textPrefix: text(200),
+        textSuffix: text(200),
+        fingerprint: text(200),
+        neighborText: text(500),
+        anchorKey: text(200),
+      },
+    };
+    return {
+      projectName: text(200),
+      type: "question",
+      message: text(5000),
+      url: text(2000),
+      urlPattern: text(2000),
+      viewport: text(50),
+      userAgent: text(500),
+      authorName: text(IDENTITY_FIELD_MAX_LENGTH),
+      authorEmail: `${text(64)}@${text(63)}.${text(63)}.de`,
+      annotations: Array.from({ length: 50 }, () => annotation),
+      clientId: text(200),
+      screenshotDataUrl: `data:image/jpeg;base64,${text(1_500_000 - 23)}`,
+      screenshotRegion: { xPct: 0, yPct: 0, wPct: 1, hPct: 1 },
+      diagnostics: {
+        console: Array.from({ length: 50 }, () => ({ level: "error", timestamp: text(50), message: text(600) })),
+        network: Array.from({ length: 20 }, () => ({
+          url: text(2000),
+          method: text(20),
+          status: 599,
+          durationMs: 600_000,
+          timestamp: text(50),
+        })),
+      },
+    };
+  }
+
+  it("refuses a body whose Content-Length is over the cap before reading it", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY });
+    const bytes = oversized();
+    const auth = { Authorization: `Bearer ${API_KEY}` };
+
+    for (const method of ["POST", "PATCH", "DELETE"] as const) {
+      const { request, pulled } = streamed(method, bytes, { ...auth, "Content-Length": String(bytes.length) });
+
+      const response = await handler[method](request);
+
+      expect(response.status).toBe(413);
+      expect(await response.json()).toEqual({ error: "Request body too large" });
+      // A stream may queue its first chunk before anyone reads it.
+      expect(pulled()).toBeLessThanOrEqual(CHUNK_BYTES);
+    }
+  });
+
+  it("stops reading a body of unknown length once it passes the cap", async () => {
+    const store = new MemoryStore();
+    const handler = createTcPinpointHandler({ store, apiKey: API_KEY });
+    const bytes = oversized();
+    const { request, pulled } = streamed("POST", bytes);
+
+    const response = await handler.POST(request);
+
+    expect(response.status).toBe(413);
+    // The chunk that crosses the cap, and the next one the stream queues ahead.
+    expect(pulled()).toBeLessThanOrEqual(DEFAULT_MAX_BODY_BYTES + 2 * CHUNK_BYTES);
+    expect((await store.getFeedbacks({ projectName: validPayloadNoAnnotations.projectName })).total).toBe(0);
+  });
+
+  it("accepts the largest submission the validation accepts, which the default cap holds twice", async () => {
+    const handler = createTcPinpointHandler({ store: new MemoryStore(), apiKey: API_KEY });
+    const bytes = encode(largestSubmission());
+    const { request } = streamed("POST", bytes, { "Content-Length": String(bytes.length) });
+
+    const response = await handler.POST(request);
+
+    expect(response.status).toBe(201);
+    expect(bytes.length * 2).toBeLessThanOrEqual(DEFAULT_MAX_BODY_BYTES);
+  });
+
+  it("answers the 413 with the request's CORS headers, and takes another cap through maxBodyBytes", async () => {
+    const origin = "https://client-site.example";
+    const handler = createTcPinpointHandler({
+      store: new MemoryStore(),
+      allowedOrigins: [origin],
+      maxBodyBytes: 1000,
+    });
+
+    const small = await handler.POST(request("POST", validPayloadNoAnnotations, { Origin: origin }));
+    const large = await handler.POST(
+      request("POST", { ...validPayloadNoAnnotations, clientId: "uuid-456", message: text(1000) }, { Origin: origin }),
+    );
+
+    expect(small.status).toBe(201);
+    expect(large.status).toBe(413);
+    expect(large.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])("refuses to start with maxBodyBytes %s", (value) => {
+    expect(() => createTcPinpointHandler({ store: new MemoryStore(), maxBodyBytes: value })).toThrow(
+      /`maxBodyBytes` must be a positive integer/,
+    );
+  });
+});
+
+describe("createTcPinpointHandler — failure reporting", () => {
+  /** A store whose reads fail with `error`, the way a missing table surfaces. */
+  function failingStore(error: unknown): TcPinpointStore {
+    const store = new MemoryStore();
+    store.getFeedbacks = () => Promise.reject(error);
+    return store;
+  }
+
+  it("reports a store failure to the logger with its request context, never the query", async () => {
+    const failure = new Error("connection refused");
+    const logger = silentLogger();
+    const handler = createTcPinpointHandler({ store: failingStore(failure), logger });
+
+    const response = await handler.GET(listRequest());
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Internal server error" });
+    expect(logger.error).toHaveBeenCalledWith("[tcpinpoint] Failed to fetch feedbacks", {
+      error: failure,
+      method: "GET",
+      path: "/api/tcpinpoint",
+    });
+  });
+
+  it("answers a logged, CORS-readable 500 when a status change, a comment delete or an answer fails", async () => {
+    const failure = new Error("connection reset");
+    const origin = "https://client-site.example";
+    const fromOrigin = { Origin: origin };
+    const store = new MemoryStore();
+    const logger = silentLogger();
+    let presentationFails = false;
+    const handler = createTcPinpointHandler({
+      store,
+      logger,
+      allowedOrigins: [origin],
+      requireAuthForDestructive: false,
+      presentFeedback: (feedback) => {
+        if (presentationFails) throw failure;
+        return feedback;
+      },
+    });
+    const { projectName } = validPayloadNoAnnotations;
+    const { id } = (await (await handler.POST(request("POST", validPayloadNoAnnotations))).json()) as FeedbackRecord;
+    const comment = await store.addComment(id, {
+      body: "b",
+      authorName: "a",
+      authorEmail: "",
+      authorRole: "client",
+      clientId: "reply-1",
+    });
+    store.updateFeedback = () => Promise.reject(failure);
+    store.deleteComment = () => Promise.reject(failure);
+
+    const patched = await handler.PATCH(request("PATCH", { id, projectName, status: "resolved" }, fromOrigin));
+    const uncommented = await handler.DELETE(
+      request("DELETE", { projectName, feedbackId: id, commentId: comment.id }, fromOrigin),
+    );
+    presentationFails = true;
+    const posted = await handler.POST(
+      request("POST", { ...validPayloadNoAnnotations, clientId: "uuid-456" }, fromOrigin),
+    );
+
+    for (const [response, message, method] of [
+      [patched, "[tcpinpoint] Failed to update feedback", "PATCH"],
+      [uncommented, "[tcpinpoint] Failed to delete comment", "DELETE"],
+      [posted, "[tcpinpoint] Failed to create feedback", "POST"],
+    ] as const) {
+      expect(response.status).toBe(500);
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+      // A cookie-authenticated widget reads nothing without it.
+      expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+      expect(await response.json()).toEqual({ error: "Internal server error" });
+      expect(logger.error).toHaveBeenCalledWith(message, { error: failure, method, path: "/api/tcpinpoint" });
+    }
+    // The POST stored its feedback: only the answer failed.
+    expect(await store.findByClientId("uuid-456")).not.toBeNull();
+  });
+
+  it("answers describeError's hint, and the generic message when it has none", async () => {
+    const missingTable = Object.assign(new Error("relation does not exist"), { code: "42P01" });
+    const describeError = (error: unknown) => (error === missingTable ? "Run the PinPoint migrations" : undefined);
+
+    const described = createTcPinpointHandler({
+      store: failingStore(missingTable),
+      logger: silentLogger(),
+      describeError,
+    });
+    const undescribed = createTcPinpointHandler({
+      store: failingStore(new Error("other")),
+      logger: silentLogger(),
+      describeError,
+    });
+
+    expect(await (await described.GET(listRequest())).json()).toEqual({ error: "Run the PinPoint migrations" });
+    expect(await (await undescribed.GET(listRequest())).json()).toEqual({ error: "Internal server error" });
+  });
+
+  it("keeps Prisma's setup hint out of the store-agnostic handler", async () => {
+    const handler = createTcPinpointHandler({ store: failingStore({ code: "P2021" }), logger: silentLogger() });
+
+    expect(await (await handler.GET(listRequest())).json()).toEqual({ error: "Internal server error" });
+  });
+
+  it("falls back to console.error when the logger throws or rejects, and still answers", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const throwing: TcPinpointLogger = {
+        error() {
+          throw new Error("logger misconfigured");
+        },
+      };
+      const rejecting: TcPinpointLogger = { error: () => Promise.reject(new Error("log shipper unreachable")) };
+
+      for (const logger of [throwing, rejecting]) {
+        const response = await createTcPinpointHandler({ store: failingStore(new Error("down")), logger }).GET(
+          listRequest(),
+        );
+
+        expect(response.status).toBe(500);
+      }
+
+      await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalledTimes(2));
+      expect(consoleSpy.mock.calls.map(([message]) => message)).toEqual([
+        "[tcpinpoint] Failed to fetch feedbacks",
+        "[tcpinpoint] Failed to fetch feedbacks",
+      ]);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("logs to console.error by default", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const handler = createTcPinpointHandler({ store: failingStore(new Error("down")) });
+
+      await handler.GET(listRequest());
+
+      expect(consoleSpy).toHaveBeenCalledWith("[tcpinpoint] Failed to fetch feedbacks", expect.anything());
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+});

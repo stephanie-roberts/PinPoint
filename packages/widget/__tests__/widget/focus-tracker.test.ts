@@ -1,0 +1,184 @@
+// @vitest-environment jsdom
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createFocusTracker, type FocusTracker } from "../../src/focus-tracker.js";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Elements appended during a test, removed in afterEach. */
+const appended: Element[] = [];
+
+function append<T extends HTMLElement>(el: T): T {
+  document.body.appendChild(el);
+  appended.push(el);
+  return el;
+}
+
+/** jsdom only focuses elements attached to the document. */
+function pageButton(): HTMLButtonElement {
+  return append(document.createElement("button"));
+}
+
+function makeHost(): HTMLElement {
+  return append(document.createElement("tcpinpoint-widget"));
+}
+
+describe("createFocusTracker", () => {
+  let tracker: FocusTracker | null = null;
+
+  afterEach(() => {
+    tracker?.destroy();
+    tracker = null;
+    for (const el of appended.splice(0)) el.remove();
+  });
+
+  it("tracks focus on a page element", () => {
+    tracker = createFocusTracker(makeHost());
+    const btn = pageButton();
+
+    btn.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(btn);
+  });
+
+  it("ignores widget chrome carrying data-tcpinpoint-ignore (previous target retained)", () => {
+    tracker = createFocusTracker(makeHost());
+    const btn = pageButton();
+    btn.focus();
+
+    const chrome = append(document.createElement("div"));
+    chrome.setAttribute("data-tcpinpoint-ignore", "true");
+    chrome.setAttribute("tabindex", "0");
+    chrome.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(btn);
+  });
+
+  it("ignores markers inside the #tcpinpoint-markers container (previous target retained)", () => {
+    tracker = createFocusTracker(makeHost());
+    const btn = pageButton();
+    btn.focus();
+
+    // Markers are focusable (tabindex=0) and do NOT carry
+    // data-tcpinpoint-ignore — only the container id identifies them.
+    const container = append(document.createElement("div"));
+    container.id = "tcpinpoint-markers";
+    const marker = document.createElement("div");
+    marker.setAttribute("tabindex", "0");
+    container.appendChild(marker);
+    marker.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(btn);
+  });
+
+  it("ignores focus inside a <tcpinpoint-widget> element (previous target retained)", () => {
+    tracker = createFocusTracker(makeHost());
+    const btn = pageButton();
+    btn.focus();
+
+    const widget = append(document.createElement("tcpinpoint-widget"));
+    const inner = document.createElement("button");
+    widget.appendChild(inner);
+    inner.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(btn);
+  });
+
+  it("ignores focus inside the #sp-tooltip element (previous target retained)", () => {
+    tracker = createFocusTracker(makeHost());
+    const btn = pageButton();
+    btn.focus();
+
+    const tooltip = append(document.createElement("div"));
+    tooltip.id = "sp-tooltip";
+    tooltip.setAttribute("tabindex", "0");
+    tooltip.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(btn);
+  });
+
+  it("tracks the element focused inside open shadow roots, not the host focus retargets to (#177)", () => {
+    tracker = createFocusTracker(makeHost());
+    const component = append(document.createElement("div"));
+    const nested = document.createElement("div");
+    component.attachShadow({ mode: "open" }).appendChild(nested);
+    const inner = document.createElement("button");
+    nested.attachShadow({ mode: "open" }).appendChild(inner);
+    // `nested` keeps jsdom's 0x0 box (a display:contents wrapper, say):
+    // the drill passes through it to the element that has one.
+    vi.spyOn(inner, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 120, 32));
+
+    inner.focus();
+
+    expect(document.activeElement).toBe(component);
+    expect(tracker.getLastPageFocus()).toBe(inner);
+  });
+
+  it("stops at the last element with a real box when focus lands on a 1px hidden control", () => {
+    tracker = createFocusTracker(makeHost());
+    const component = append(document.createElement("div"));
+    const field = document.createElement("span");
+    component.attachShadow({ mode: "open" }).appendChild(field);
+    const control = document.createElement("input");
+    field.attachShadow({ mode: "open" }).appendChild(control);
+    vi.spyOn(field, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 200, 40));
+    vi.spyOn(control, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1, 1));
+
+    control.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(field);
+  });
+
+  it("keeps the host of a closed shadow root", () => {
+    tracker = createFocusTracker(makeHost());
+    const component = append(document.createElement("div"));
+    const inner = document.createElement("button");
+    component.attachShadow({ mode: "closed" }).appendChild(inner);
+
+    inner.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(component);
+  });
+
+  it("ignores a web component inside widget chrome (previous target retained)", () => {
+    tracker = createFocusTracker(makeHost());
+    const btn = pageButton();
+    btn.focus();
+
+    const chrome = append(document.createElement("div"));
+    chrome.setAttribute("data-tcpinpoint-ignore", "true");
+    const component = chrome.appendChild(document.createElement("div"));
+    const inner = document.createElement("button");
+    component.attachShadow({ mode: "open" }).appendChild(inner);
+    inner.focus();
+
+    expect(tracker.getLastPageFocus()).toBe(btn);
+  });
+
+  it("returns null once the tracked element leaves the DOM", () => {
+    tracker = createFocusTracker(makeHost());
+    const btn = pageButton();
+    btn.focus();
+    expect(tracker.getLastPageFocus()).toBe(btn);
+
+    btn.remove();
+
+    expect(tracker.getLastPageFocus()).toBeNull();
+  });
+
+  it("destroy() removes the focusin listener — later focus is not tracked", () => {
+    tracker = createFocusTracker(makeHost());
+    const before = pageButton();
+    before.focus();
+
+    tracker.destroy();
+
+    const after = pageButton();
+    after.focus();
+
+    expect(tracker.getLastPageFocus()).toBeNull();
+    tracker = null;
+  });
+});

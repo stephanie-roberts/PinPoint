@@ -1,0 +1,1393 @@
+import { type AssertEqual, type DeepReadonly, hasOwn, type Prettify, type Serialized } from "./type-utils.js";
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+
+/** FAB anchor — bottom-corner placement supported by the widget. */
+export type TcPinpointPosition = "bottom-right" | "bottom-left";
+
+/** Visual theme — `auto` resolves to `light` or `dark` via system preference. */
+export type TcPinpointTheme = "light" | "dark" | "auto";
+
+/** Built-in UI locales shipped with the widget. */
+export const BUILTIN_LOCALES = ["en", "fr", "de", "es", "it", "pt", "ru", "ja", "ko"] as const;
+export type BuiltinLocale = (typeof BUILTIN_LOCALES)[number];
+
+/**
+ * Locale identifier accepted by the widget. Built-in locales are kept as
+ * literal strings so editors auto-complete them, but arbitrary BCP-47 tags
+ * are also accepted (custom dictionaries registered via `registerLocale`).
+ */
+export type TcPinpointLocale = BuiltinLocale | (string & {});
+
+/**
+ * Reasons reported through `TcPinpointConfig.onSkip` — production environment,
+ * viewport narrower than `minViewportWidth` (`"mobile"`), or server-side
+ * rendering (no `window`/`document`).
+ */
+export type TcPinpointSkipReason = "production" | "mobile" | "ssr";
+
+/** Per-channel + per-buffer-size diagnostics configuration. */
+export interface DiagnosticsCaptureOptions {
+  console?: boolean | undefined;
+  network?: boolean | undefined;
+  /** Console buffer size — default and maximum 50 (the server's cap; larger values are clamped). */
+  maxConsoleEntries?: number | undefined;
+  /** Failed-request buffer size — default and maximum 20 (the server's cap; larger values are clamped). */
+  maxNetworkEntries?: number | undefined;
+}
+
+/** Identity payload supplied by the host application — bypasses the modal. */
+export interface TcPinpointIdentity {
+  name: string;
+  email: string;
+}
+
+/**
+ * Max length of an identity's `name` and `email` — the HTTP schema's
+ * `authorName` / `authorEmail` cap. The widget's modal enforces it so a value
+ * it persists is never a 400 on every later submission.
+ */
+export const IDENTITY_FIELD_MAX_LENGTH = 200;
+
+/** Deep-link configuration — controls how a feedback id is read from the URL. */
+export interface TcPinpointDeepLinkOptions {
+  /** Query parameter name carrying the feedback id. Defaults to `"tcpinpoint"`. */
+  param?: string | undefined;
+}
+
+/**
+ * The feedback handed to panel action callbacks: a detached, deeply frozen
+ * copy, typed read-only all the way down. Type your own helpers with it — a
+ * `FeedbackResponse` parameter does not accept the frozen copy.
+ */
+export type TcPinpointPanelActionFeedback = DeepReadonly<FeedbackResponse>;
+
+/**
+ * Helpers passed to a panel action's `onAction` as its second argument.
+ * Both do nothing once the widget has been destroyed.
+ */
+export interface TcPinpointPanelActionContext {
+  /**
+   * Re-fetch the panel list and markers, then re-render the detail view with
+   * the updated feedback — or go back to the list when it no longer matches
+   * the panel filters. Call it after your action changed the feedback
+   * server-side (e.g. moved it to `in_progress` once a ticket exists).
+   */
+  refresh: () => Promise<void>;
+  /** Close the feedback panel. */
+  close: () => void;
+}
+
+/**
+ * Fields shared by both kinds of {@link TcPinpointPanelAction}.
+ *
+ * Do not use this type directly — use {@link TcPinpointPanelAction}.
+ */
+export interface TcPinpointPanelActionBase {
+  /** Stable, unique identifier — becomes `data-action-id` on the rendered control. */
+  id: string;
+  /**
+   * Visible label, rendered as plain text. Host-provided verbatim — not
+   * routed through the widget i18n, since hosts localize their own strings.
+   */
+  label: string;
+  /**
+   * Optional inline SVG markup rendered before the label. It is parsed
+   * inertly and reduced to plain shapes — scripts, event handlers, links,
+   * styles and external references are dropped — but keep it static markup
+   * you control. Markup that is not an `<svg>` is ignored with a warning.
+   */
+  icon?: string | undefined;
+  /**
+   * Per-feedback visibility predicate. Return `false` to omit the action
+   * for that feedback. Defaults to always visible. A throw hides the action
+   * and is reported through `onError`.
+   */
+  visible?: ((feedback: TcPinpointPanelActionFeedback) => boolean) | undefined;
+}
+
+/** A panel action rendered as a button that runs host code. */
+export interface TcPinpointPanelButtonAction extends TcPinpointPanelActionBase {
+  /**
+   * Invoked on click. While a returned promise is pending the detail view's
+   * action buttons are disabled and the clicked button shows a spinner —
+   * also after `context.refresh()` re-renders the view, and when the user
+   * comes back to that feedback.
+   * Throws and rejections are reported through `onError` and restore the
+   * buttons; the detail view stays open either way.
+   */
+  onAction: (feedback: TcPinpointPanelActionFeedback, context: TcPinpointPanelActionContext) => void | Promise<void>;
+  /** Not available on a button action — use either `onAction` or `href`, never both. */
+  href?: never;
+}
+
+/** A panel action rendered as a link. */
+export interface TcPinpointPanelLinkAction extends TcPinpointPanelActionBase {
+  /**
+   * Link target — a URL, or a function building one from the feedback.
+   * Relative URLs resolve against the page. Only `http:`, `https:` and
+   * `mailto:` are rendered: a static `href` with any other scheme
+   * (`javascript:` included) skips the action with a warning; a function
+   * returning one hides the action and is reported through `onError`. Web
+   * links open in a new tab with `rel="noopener noreferrer"`.
+   */
+  href: string | ((feedback: TcPinpointPanelActionFeedback) => string);
+  /** Not available on a link action — use either `onAction` or `href`, never both. */
+  onAction?: never;
+}
+
+/**
+ * A host-defined action rendered in the feedback detail view, below the
+ * built-in Resolve / Delete buttons: a button running your code
+ * (`onAction`) or a link (`href`) — never both.
+ *
+ * Hosts use this to bridge feedbacks into their own systems — create a
+ * ticket, dispatch to a bot, open the feedback in their tracker — without
+ * forking the panel. Callbacks receive a detached, deeply frozen copy of
+ * the feedback: read it freely, it can never alter what the panel displays.
+ */
+export type TcPinpointPanelAction = TcPinpointPanelButtonAction | TcPinpointPanelLinkAction;
+
+/**
+ * Extra request headers for HTTP mode — a static map, or a factory (sync or
+ * async) invoked once per request to produce fresh values (e.g. a short-lived
+ * session token).
+ */
+export type TcPinpointHeadersOption =
+  | Record<string, string>
+  | (() => Record<string, string> | Promise<Record<string, string>>);
+
+/**
+ * Options shared by both widget modes (HTTP and direct store).
+ *
+ * Do not use this type directly — use {@link TcPinpointConfig}, the
+ * discriminated union that adds the mode-specific fields.
+ */
+export interface TcPinpointBaseConfig {
+  /** Required — project identifier used to scope feedbacks */
+  projectName: string;
+  /** FAB position — defaults to 'bottom-right' */
+  position?: TcPinpointPosition | undefined;
+  /**
+   * Show the "toggle markers visibility" item in the FAB radial menu.
+   * Defaults to `true` (current behavior). Set to `false` to hide that
+   * item entirely — useful for hosts that always want markers visible
+   * (e.g. dedicated review tools) or that find the eye icon redundant
+   * when no marker is on screen.
+   *
+   * Hiding the item also removes its keyboard navigation slot — the
+   * remaining two items still respond to ArrowUp/ArrowDown/Home/End.
+   * The marker-visibility state itself is unaffected; markers stay
+   * visible (the previous default state) and `annotations:toggle` is
+   * simply never emitted from the FAB.
+   */
+  showAnnotationsToggle?: boolean | undefined;
+  /** Accent color for the widget UI — defaults to '#0066ff' */
+  accentColor?: string | undefined;
+  /**
+   * Render the widget even when it would normally be skipped — this bypasses
+   * BOTH the production-environment guard AND the `minViewportWidth` guard.
+   * It does NOT bypass the SSR guard: without `window`/`document` the widget
+   * never renders and `onSkip("ssr")` fires instead.
+   * Defaults to false. Use it for dedicated review tools, staging environments,
+   * or responsive testing where you always want the widget present.
+   */
+  forceShow?: boolean | undefined;
+  /**
+   * Minimum viewport width (px) at or above which the widget renders. Below it,
+   * the widget is skipped and `onSkip("mobile")` fires. Defaults to `0`: the
+   * widget renders at every width, and phones get a compact layout (bottom
+   * sheets, touch-sized controls).
+   *
+   * Set it (e.g. `768`) to keep the widget off small screens, or use
+   * `forceShow` to bypass the viewport check entirely.
+   */
+  minViewportWidth?: number | undefined;
+  /** Enable debug logging of lifecycle events — defaults to false */
+  debug?: boolean | undefined;
+  /** Color theme — defaults to 'light' */
+  theme?: TcPinpointTheme | undefined;
+  /** UI locale — defaults to 'en'. Built-in: en, fr, de, es, it, pt (Brazilian), ru, ja, ko. Any other string falls back to English. */
+  locale?: TcPinpointLocale | undefined;
+  /**
+   * Returns the current page scope for annotations and panel filtering.
+   * Called on initial markers load and on `instance.refresh()`.
+   *
+   * Default: `{ url: window.location.pathname, urlPattern: null }` — annotations
+   * are scoped strictly to the current pathname.
+   *
+   * Apps with parameterized routes (e.g. React Router) should return both the
+   * concrete URL and the route template (e.g. `/orders/:orderId`) so the panel
+   * can offer a "this type of page" filter that groups feedbacks by template.
+   */
+  getPageScope?: (() => PageScope) | undefined;
+  /**
+   * When true (default), the widget filters initial markers and panel results
+   * by `feedback.url === scope.url`, so annotations created on one page never
+   * leak to other pages — even if their CSS selector accidentally matches.
+   * Set to `false` to revert to the legacy project-wide behavior.
+   */
+  scopeAnnotationsByUrl?: boolean | undefined;
+  /**
+   * Capture a JPEG screenshot of the annotated area on submit. Defaults to
+   * `false` — opt-in because:
+   *
+   * - it adds runtime weight (~60 KB gzip dynamic chunk for html2canvas-pro,
+   *   loaded only on first capture),
+   * - it embeds page content in the feedback (privacy/GDPR consideration —
+   *   inform end users in your widget host UI when enabling).
+   *
+   * `html2canvas-pro` ships as a regular dependency of `@tc-pinpoint/widget` so the
+   * dynamic import always resolves; you don't need to install anything extra.
+   *
+   * **Masking sensitive elements:** add `data-tcpinpoint-ignore="true"` to any
+   * element you do NOT want captured (password fields, credit-card forms,
+   * API tokens shown in the UI, etc.). The capture predicate skips matching
+   * elements *and their descendants*. Do this BEFORE turning on screenshots
+   * in production — once a feedback is saved, the screenshot is in your DB
+   * (or object storage) regardless of what was on the page.
+   */
+  enableScreenshot?: boolean | undefined;
+  /**
+   * Enable right-click (`contextmenu`) to instantly open the comment composer
+   * at the cursor location. When enabled, a document-level listener intercepts
+   * right-clicks, prevents the browser's native context menu, and enters the
+   * annotation flow anchored to the element under the cursor. Defaults to
+   * `false` — the browser's native context menu is never hijacked unless the
+   * host explicitly opts in.
+   *
+   * Keyboard-triggered context menus (≣ Menu key, Shift+F10) always get the
+   * native menu; only mouse right-click and touch/pen long-press open the
+   * composer — a long-press only where the browser fires `contextmenu` for
+   * it, which iOS and iPadOS never do (see the note below).
+   *
+   * **Modifier-key escape hatch:** holding Shift, Ctrl, Alt, or Meta while
+   * right-clicking always falls through to the native context menu, giving
+   * users (and devtools) an escape hatch regardless of this setting.
+   *
+   * Right-clicks on PinPoint's own UI (FAB, panel, markers, popup) are
+   * ignored — the native menu is shown as expected.
+   *
+   * Note: on Android, `contextmenu` fires on long-press — touch users open the
+   * composer by long-pressing, on phones too since the widget renders at every
+   * width by default (see `minViewportWidth`). On iPhone and iPad a long-press
+   * never fires `contextmenu` (WebKit bug 213953): users there open annotate
+   * mode from the floating button and tap the element.
+   */
+  enableRightClickComment?: boolean | undefined;
+  /**
+   * Capture the last few `console.*` calls and failed network requests
+   * (HTTP >= 400 or network error) at the moment a feedback is submitted.
+   *
+   * Lets reviewers replay the technical context that led to the report —
+   * stack traces, 500 responses, dead third-party scripts. Great for the
+   * "the page just doesn't work" feedback that contains zero detail.
+   *
+   * - `true` — capture with defaults (50 console / 20 network entries).
+   * - `false` (default) — no capture, no monkey-patching.
+   * - object — per-channel toggles + smaller buffer sizes (values above the
+   *   50 / 20 server caps are clamped so submissions never fail validation).
+   *
+   * **Privacy considerations:** console messages may contain anything the
+   * host page logs, including user data. Failed network requests record the
+   * URL without its credentials, query string or hash, and never the
+   * response body.
+   * Inform end users before enabling in environments where they might log
+   * sensitive values.
+   */
+  captureDiagnostics?: boolean | DiagnosticsCaptureOptions | undefined;
+  /** Called when the widget is skipped (production mode, viewport under `minViewportWidth`, SSR — no DOM) */
+  onSkip?: (reason: TcPinpointSkipReason) => void;
+  /**
+   * Auto-focus a specific annotation when its ID appears in the URL query
+   * string. Lets hosts deeplink directly into a feedback from external
+   * systems (Zammad tickets, Slack notifications, dashboard rows).
+   *
+   * When enabled, the widget reads the configured query parameter from
+   * `window.location.search` right after the initial markers load. If the
+   * value matches a visible feedback ID, the widget scrolls the annotation
+   * into view, pins its highlight, and pulses the marker — the same visual
+   * affordance a marker click produces.
+   *
+   * - `false` / `undefined` (default): no URL parsing. Existing behavior
+   *   unchanged, no host URL inspection.
+   * - `true`: enabled with default query parameter name `tcpinpoint`.
+   * - object: enabled with a custom parameter name. Use this to avoid
+   *   clashes with host-app query keys.
+   *
+   * Only the initial load triggers focus. Subsequent URL changes (SPA
+   * navigation, `history.pushState`, hash updates) are ignored —
+   * deliberate, to avoid surprising re-scrolls during normal browsing.
+   * Hosts that need re-focus on route change can call
+   * `instance.focusFeedback(id)` explicitly.
+   */
+  deepLink?: boolean | TcPinpointDeepLinkOptions | undefined;
+  /**
+   * Automatically re-fetch feedbacks when the page changes during client-side
+   * (SPA) navigation. Enabled by default.
+   *
+   * The widget is normally mounted once (singleton) inside a persistent layout
+   * — e.g. a Next.js App Router `layout.tsx`, which does NOT remount on
+   * client-side navigation. Without this, init runs a single time and both the
+   * panel list and the page markers stay frozen on the page where the widget
+   * first mounted. With it on, the widget patches the History API
+   * (`pushState`/`replaceState`, which SPA routers call instead of triggering
+   * `popstate`) and listens for `popstate`/`hashchange`, then re-fetches when
+   * the scope key (`getPageScope().url` + template) actually changes.
+   *
+   * This re-fetches data only — it deliberately does NOT re-focus or re-scroll
+   * to an annotation (deep-link focus stays initial-load only; see `deepLink`),
+   * so normal browsing is never interrupted by a surprise scroll.
+   *
+   * - `true` (default) — watch navigation and re-fetch on route change.
+   * - `false` — never touch the History API; hosts drive updates manually via
+   *   `instance.refresh()`.
+   */
+  watchNavigation?: boolean | undefined;
+  /**
+   * Pre-fill author identity from the host application — typically the
+   * currently signed-in user. When set, the widget uses these values
+   * directly and never shows the identity modal, even on first feedback.
+   *
+   * Use case: SSO-integrated apps where the end user is already
+   * authenticated by the host. Avoids the awkward "enter your name and
+   * email" prompt for users the host already knows.
+   *
+   * When unset (default), the widget falls back to localStorage and shows
+   * the modal on first feedback as before — existing behavior unchanged.
+   *
+   * Note: `config.identity` is **not** persisted to localStorage. It is
+   * read at widget init time, not on every render. Hosts that need live
+   * identity updates after sign-in/sign-out should currently remount the
+   * widget (e.g. via a React `key` on the wrapping component). See
+   * https://github.com/NeosiaNexus/SitePing/issues/85 (the original SitePing project) for tracking a
+   * future enhancement that propagates identity updates without a remount.
+   */
+  identity?: TcPinpointIdentity | undefined;
+  /**
+   * Host-defined actions rendered in the feedback detail view, below the
+   * built-in Resolve and Delete buttons. Read once when the panel loads:
+   * entries without a non-empty `id` and `label`, without exactly one of
+   * `onAction` / `href`, with an unsafe static `href`, or reusing an earlier
+   * `id` are skipped with a console warning. See {@link TcPinpointPanelAction}.
+   */
+  panelActions?: readonly TcPinpointPanelAction[] | undefined;
+  /**
+   * Reviewer mode: hide the actions that triage feedback — resolve, reopen,
+   * delete, the bulk actions, "Delete all" — and keep creating, browsing
+   * and replying. Defaults to `false`. The server's `permissions` hide
+   * what it would refuse on top of it. It only hides: the server decides
+   * what it accepts. Read once when the panel loads.
+   */
+  readOnly?: boolean | undefined;
+
+  // Events
+  /** Called when the feedback panel is opened. */
+  onOpen?: (() => void) | undefined;
+  /** Called when the feedback panel is closed. */
+  onClose?: (() => void) | undefined;
+  /** Called after a feedback is successfully submitted. */
+  onFeedbackSent?: ((feedback: FeedbackResponse) => void) | undefined;
+  /** Called after a reply is posted from the panel's discussion thread. */
+  onCommentAdded?: ((comment: CommentResponse) => void) | undefined;
+  /**
+   * Called when a feedback API call fails.
+   *
+   * The widget always emits a `TcPinpointError` (or a subclass:
+   * `TcPinpointNetworkError`, `TcPinpointValidationError`, `TcPinpointAuthError`)
+   * for HTTP-mode failures — host apps can `instanceof` to drive retry
+   * logic, or read `error.code` (`"NETWORK" | "VALIDATION" | "AUTH" |
+   * "SERVER"`) and `error.retryable` — and an `AUTH` error's `status`
+   * (`401` for missing or dead credentials, `403` for a refusal). The type
+   * is widened to `Error` so direct-store callers can still surface raw
+   * errors without breaking the contract.
+   *
+   * Also receives whatever a `panelActions` callback throws or rejects with
+   * (non-`Error` values are wrapped). Those host failures are not API
+   * failures, so they are not emitted on the public `feedback:error` event.
+   * The widget has no UI for them, so they are also always logged with
+   * `console.error`, whether or not `onError` is set.
+   */
+  onError?: ((error: Error) => void) | undefined;
+  /** Called when the user starts drawing an annotation. */
+  onAnnotationStart?: (() => void) | undefined;
+  /** Called when the user finishes drawing an annotation. */
+  onAnnotationEnd?: (() => void) | undefined;
+}
+
+/**
+ * HTTP mode — the widget talks to a server endpoint backed by a store
+ * adapter (e.g. `@tc-pinpoint/adapter-prisma` request handlers).
+ */
+export interface TcPinpointHttpConfig extends TcPinpointBaseConfig {
+  /** HTTP endpoint that receives feedbacks (e.g. '/api/tcpinpoint'). */
+  endpoint: string;
+  /**
+   * Convenience auth for HTTP mode — sent as `Authorization: Bearer <apiKey>`
+   * on every request to `endpoint`.
+   *
+   * **WARNING: the widget runs in every visitor's browser, so a static key
+   * configured here is public** — anyone can read it from your page source
+   * and replay it against your API. Only use `apiKey` for internal tools
+   * already behind your own login. On public sites, prefer `headers` with a
+   * per-request factory returning a short-lived session token.
+   */
+  apiKey?: string | undefined;
+  /**
+   * Extra headers for every HTTP-mode request — a static map, or a factory
+   * (sync or async) called once per request (e.g. to fetch a fresh session
+   * token). Merged over the widget's generated headers, case-insensitively,
+   * so an explicit `Authorization` entry overrides `apiKey`. A factory that
+   * throws, rejects, or does not settle within 10 s fails the request like a
+   * network error.
+   */
+  headers?: TcPinpointHeadersOption | undefined;
+  /** Not available in HTTP mode — use either `endpoint` or `store`, never both. */
+  store?: never;
+}
+
+/**
+ * Store mode — the widget talks to a `TcPinpointStore` directly in the
+ * browser, no server needed (demos, prototypes, localStorage persistence).
+ */
+export interface TcPinpointStoreConfig extends TcPinpointBaseConfig {
+  /**
+   * Direct store for client-side mode. Bypasses HTTP entirely. A send stops
+   * waiting on `createFeedback` after 30 s (the call itself cannot be
+   * cancelled), so a network-backed store should bound its own calls.
+   */
+  store: TcPinpointStore;
+  /** Not available in store mode — use either `endpoint` or `store`, never both. */
+  endpoint?: never;
+  /** HTTP-mode only — meaningless without an `endpoint`. */
+  apiKey?: never;
+  /** HTTP-mode only — meaningless without an `endpoint`. */
+  headers?: never;
+}
+
+/**
+ * Configuration options for the PinPoint widget.
+ *
+ * A discriminated union over the two transport modes: pass `endpoint`
+ * (HTTP mode, optionally with `apiKey`/`headers`) **or** `store` (direct
+ * client-side mode) — never both, never neither. Invalid combinations are
+ * compile errors instead of runtime warnings.
+ */
+export type TcPinpointConfig = TcPinpointHttpConfig | TcPinpointStoreConfig;
+
+/** Instance returned by initTcPinpoint() with lifecycle methods. */
+export interface TcPinpointInstance {
+  /** Remove the widget from the DOM and clean up all listeners. */
+  destroy: () => void;
+  /** Open the panel programmatically */
+  open: () => void;
+  /** Close the panel */
+  close: () => void;
+  /** Reload feedbacks from server */
+  refresh: () => void;
+  /**
+   * Scroll the matching annotation into view, pin its highlight, and
+   * pulse its marker. Returns `true` when a visible feedback matched the
+   * given ID, `false` otherwise (unknown ID, feedback on another URL when
+   * `scopeAnnotationsByUrl` filtered it out, or markers not yet loaded).
+   *
+   * Counterpart to the `deepLink` config option for hosts that prefer to
+   * drive focus from JS (e.g., a notification click handler) instead of a
+   * URL query parameter.
+   */
+  focusFeedback: (feedbackId: string) => boolean;
+  /** Subscribe to a public widget event */
+  on: <K extends keyof TcPinpointPublicEvents>(
+    event: K,
+    listener: TcPinpointPublicEventListener<K>,
+  ) => TcPinpointUnsubscribe;
+  /** Unsubscribe from a public widget event */
+  off: <K extends keyof TcPinpointPublicEvents>(event: K, listener: TcPinpointPublicEventListener<K>) => void;
+}
+
+/** Listener signature for a single `TcPinpointPublicEvents` key. */
+export type TcPinpointPublicEventListener<K extends keyof TcPinpointPublicEvents> = (
+  ...args: TcPinpointPublicEvents[K]
+) => void;
+
+/** Disposer returned by `TcPinpointInstance.on` — call once to detach the listener. */
+export type TcPinpointUnsubscribe = () => void;
+
+/** Events exposed to consumers via TcPinpointInstance.on / .off */
+export interface TcPinpointPublicEvents {
+  "feedback:sent": [FeedbackResponse];
+  "feedback:deleted": [FeedbackResponse["id"]];
+  /** A reply was posted from the panel's discussion thread. */
+  "comment:added": [CommentResponse];
+  /**
+   * A feedback API call failed. Same payload contract as
+   * `TcPinpointConfig.onError` — a `TcPinpointError` subclass in HTTP mode,
+   * possibly a raw `Error` in store mode.
+   */
+  "feedback:error": [Error];
+  "panel:open": [];
+  "panel:close": [];
+  /** The user started drawing an annotation. */
+  "annotation:start": [];
+  /** The user finished drawing an annotation. */
+  "annotation:end": [];
+}
+
+// ---------------------------------------------------------------------------
+// Feedback
+// ---------------------------------------------------------------------------
+
+/** Single source of truth for feedback types — used by both TS types and Zod schemas. */
+export const FEEDBACK_TYPES = ["question", "change", "bug", "other"] as const;
+export type FeedbackType = (typeof FEEDBACK_TYPES)[number];
+
+/** Single source of truth for feedback statuses. */
+export const FEEDBACK_STATUSES = ["open", "in_progress", "resolved", "wont_fix"] as const;
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
+
+/**
+ * Terminal statuses — the feedback needs no further action. `resolvedAt` is
+ * the closure timestamp: set when a feedback enters a closed status, null
+ * while it is open or in progress. The derivation happens at the edge (HTTP
+ * handler, dashboard) — store adapters persist whatever they are given.
+ */
+export const CLOSED_FEEDBACK_STATUSES = ["resolved", "wont_fix"] as const;
+/** A terminal status — `resolved` or `wont_fix`. */
+export type ClosedFeedbackStatus = (typeof CLOSED_FEEDBACK_STATUSES)[number];
+
+/** Non-terminal statuses — the feedback still needs attention. */
+export const OPEN_FEEDBACK_STATUSES = ["open", "in_progress"] as const;
+/** A non-terminal status — `open` or `in_progress`. */
+export type OpenFeedbackStatus = (typeof OPEN_FEEDBACK_STATUSES)[number];
+
+// Adding a fifth status without assigning it to exactly one bucket is a
+// compile error here.
+const _statusBucketsCoverAll: AssertEqual<OpenFeedbackStatus | ClosedFeedbackStatus, FeedbackStatus> = true;
+void _statusBucketsCoverAll;
+
+/** Whether a status is terminal (`resolved` or `wont_fix`). Narrows the status type. */
+export function isClosedStatus(status: FeedbackStatus): status is ClosedFeedbackStatus {
+  return (CLOSED_FEEDBACK_STATUSES as readonly FeedbackStatus[]).includes(status);
+}
+
+/**
+ * Page scope returned by `TcPinpointConfig.getPageScope()`.
+ *
+ * - `url`: concrete page identifier — usually `window.location.pathname`,
+ *   used as the strict scope for marker rendering.
+ * - `urlPattern`: optional parameterized template (e.g. `/orders/:orderId`)
+ *   used by the panel's "this type of page" filter to group feedbacks across
+ *   instances of the same page kind.
+ */
+export interface PageScope {
+  url: string;
+  urlPattern: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Abstract Store — adapter pattern
+// ---------------------------------------------------------------------------
+
+/** Input for creating a feedback record in the store. */
+export interface FeedbackCreateInput {
+  projectName: string;
+  type: FeedbackType;
+  message: string;
+  status: FeedbackStatus;
+  url: string;
+  /**
+   * Optional parameterized URL template (e.g. `/orders/:orderId`) for the page
+   * where the feedback was created. Allows the panel to filter feedbacks by
+   * "this type of page" across different instances. Null when the host did not
+   * provide a `getPageScope` callback or the route has no template.
+   */
+  urlPattern?: string | null | undefined;
+  viewport: string;
+  userAgent: string;
+  authorName: string;
+  authorEmail: string;
+  clientId: string;
+  annotations: AnnotationCreateInput[];
+  /**
+   * Base64 JPEG `data:` URL captured by the widget at submit time.
+   *
+   * Adapters with a configured `ScreenshotStorage` are expected to upload
+   * this and persist the returned URL on `FeedbackRecord.screenshotUrl`.
+   * Adapters without storage may persist the data URL inline (memory /
+   * localStorage / dev) — the widget then renders it directly.
+   */
+  screenshotDataUrl?: string | null | undefined;
+  /**
+   * Where the client's annotation rect sits within the screenshot image,
+   * as fractions [0, 1] of the image dimensions. Present when the widget
+   * captured context around the drawn rect; null for legacy captures that
+   * were cropped exactly to the rect (dashboards then render the image
+   * without an overlay).
+   */
+  screenshotRegion?: ScreenshotRegion | null | undefined;
+  /**
+   * Optional console + failed-network snapshot captured by the widget when
+   * `TcPinpointConfig.captureDiagnostics` is enabled. Stored as JSON on
+   * `FeedbackRecord.diagnostics` so reviewers can replay the context.
+   */
+  diagnostics?: DiagnosticsSnapshot | null | undefined;
+}
+
+/** Input for a single annotation when creating a feedback. */
+export interface AnnotationCreateInput {
+  cssSelector: string;
+  xpath: string;
+  textSnippet: string;
+  elementTag: string;
+  elementId?: string | undefined;
+  textPrefix: string;
+  textSuffix: string;
+  fingerprint: string;
+  neighborText: string;
+  /**
+   * Semantic anchor identifier from the closest ancestor's `data-feedback-anchor`
+   * attribute. When set, this is the most stable re-anchoring signal because
+   * hosts deliberately place these on layout/section roots that survive DOM
+   * refactors and viewport changes. Null when no semantic ancestor exists.
+   */
+  anchorKey?: string | null | undefined;
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+  scrollX: number;
+  scrollY: number;
+  viewportW: number;
+  viewportH: number;
+  devicePixelRatio: number;
+}
+
+/** Query parameters for fetching feedbacks. */
+export interface FeedbackQuery {
+  projectName: string;
+  type?: FeedbackType | undefined;
+  /** Exact single-status filter. For "any of a set" (bucket) semantics, use `statuses`. */
+  status?: FeedbackStatus | undefined;
+  /**
+   * Filter to feedbacks whose status is any of the listed values — bucket
+   * semantics used by the panel's binary tabs (e.g. "Open" passes
+   * `["open", "in_progress"]`). When both `status` and `statuses` are set,
+   * `statuses` wins. An empty array is treated as absent (no status filter).
+   */
+  statuses?: readonly FeedbackStatus[] | undefined;
+  search?: string | undefined;
+  page?: number | undefined;
+  /**
+   * Page size. Defaults to `DEFAULT_PAGE_LIMIT` (50) and is capped at
+   * `MAX_PAGE_LIMIT` (100) — `clampPagination` implements both, and the
+   * conformance suite checks them.
+   */
+  limit?: number | undefined;
+  /**
+   * Filter to feedbacks created on this exact URL (path). Used by the panel's
+   * "this page" filter and by the markers loader to keep page scopes isolated.
+   */
+  url?: string | undefined;
+  /**
+   * Filter to feedbacks created on this URL pattern (e.g. `/orders/:orderId`).
+   * Used by the panel's "this type of page" filter to group feedbacks across
+   * different concrete instances of the same template.
+   */
+  urlPattern?: string | undefined;
+}
+
+/**
+ * Update payload for patching a feedback.
+ *
+ * A discriminated union encoding the closure invariant: a feedback entering
+ * a closed status carries its closure timestamp, an open one carries `null`.
+ * `{ status: "resolved", resolvedAt: null }` is a compile error instead of a
+ * silent data bug. Build it from a plain `FeedbackStatus` with
+ * {@link toFeedbackUpdate}.
+ */
+export type FeedbackUpdateInput =
+  | { status: OpenFeedbackStatus; resolvedAt: null }
+  | { status: ClosedFeedbackStatus; resolvedAt: Date };
+
+/**
+ * Derive the {@link FeedbackUpdateInput} for a status change — the closure
+ * timestamp is stamped for closed statuses and cleared otherwise. This is
+ * the edge derivation described on {@link CLOSED_FEEDBACK_STATUSES}; store
+ * adapters persist the result verbatim.
+ */
+export function toFeedbackUpdate(status: FeedbackStatus, closedAt: Date = new Date()): FeedbackUpdateInput {
+  return isClosedStatus(status) ? { status, resolvedAt: closedAt } : { status, resolvedAt: null };
+}
+
+/** A persisted feedback record returned by the store. */
+export interface FeedbackRecord {
+  id: string;
+  type: FeedbackType;
+  message: string;
+  status: FeedbackStatus;
+  projectName: string;
+  url: string;
+  /**
+   * Parameterized URL template the feedback was created on.
+   * Null for legacy records or hosts without `getPageScope`.
+   */
+  urlPattern: string | null;
+  authorName: string;
+  authorEmail: string;
+  viewport: string;
+  userAgent: string;
+  clientId: string;
+  resolvedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  annotations: AnnotationRecord[];
+  /**
+   * Discussion thread, oldest first. A store that implements
+   * `TcPinpointStore.addComment` returns it on every record; a store without
+   * comments may leave it out, which reads as an empty thread (HTTP handlers
+   * send `[]`).
+   */
+  comments?: CommentRecord[] | undefined;
+  /**
+   * URL the widget renders as `<img src>`. Either an `https://...` from a
+   * configured `ScreenshotStorage`, or a `data:image/jpeg;base64,...` URL
+   * inline-persisted by adapters without storage. Null when no screenshot
+   * was captured (legacy records, capture failed, or host disabled it).
+   */
+  screenshotUrl: string | null;
+  /**
+   * Annotation rect position within the screenshot image, as fractions of
+   * its dimensions. Null for legacy captures cropped exactly to the rect.
+   */
+  screenshotRegion: ScreenshotRegion | null;
+  /**
+   * Console + failed-network snapshot captured at submit time. Null when
+   * diagnostics weren't enabled on the widget side.
+   */
+  diagnostics: DiagnosticsSnapshot | null;
+}
+
+/** A persisted annotation record returned by the store. */
+export interface AnnotationRecord {
+  id: string;
+  feedbackId: string;
+  cssSelector: string;
+  xpath: string;
+  textSnippet: string;
+  elementTag: string;
+  elementId: string | null;
+  textPrefix: string;
+  textSuffix: string;
+  fingerprint: string;
+  neighborText: string;
+  /**
+   * Semantic anchor identifier from `data-feedback-anchor`. Null for legacy
+   * annotations or those drawn outside any anchored region.
+   */
+  anchorKey: string | null;
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+  scrollX: number;
+  scrollY: number;
+  viewportW: number;
+  viewportH: number;
+  devicePixelRatio: number;
+  createdAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Comments — the discussion thread of a feedback
+// ---------------------------------------------------------------------------
+
+/**
+ * Who wrote a comment: `client` — the reviewer on the site (the widget) —
+ * or `team` — the project side (the dashboard). HTTP handlers stamp
+ * `client` unless the server's access policy vouches for the caller, so a
+ * visitor cannot pose as the team.
+ */
+export const COMMENT_AUTHOR_ROLES = ["client", "team"] as const;
+export type CommentAuthorRole = (typeof COMMENT_AUTHOR_ROLES)[number];
+
+/** Longest comment `body` the HTTP API accepts — the cap of a feedback `message`. */
+export const COMMENT_BODY_MAX_LENGTH = 5000;
+
+/**
+ * Most `client` comments one thread holds. List responses embed whole
+ * threads, which are not paginated, so this bounds what one feedback weighs
+ * however much a public endpoint is spammed. `team` comments — a role only
+ * the access policy grants — neither count nor meet it: a thread spammed
+ * full still takes the team's answer. Stores enforce it with
+ * `StoreLimitError`; a store without an atomic primitive may overshoot it by
+ * the posts that race the last free slot.
+ */
+export const MAX_COMMENTS_PER_FEEDBACK = 100;
+
+/** A persisted comment returned by the store. */
+export interface CommentRecord {
+  id: string;
+  /** The feedback whose thread holds this comment. */
+  feedbackId: string;
+  body: string;
+  authorName: string;
+  /**
+   * Author email, or `""` when the author has none on file (a dashboard
+   * user). HTTP handlers redact it exactly like `FeedbackRecord.authorEmail`.
+   */
+  authorEmail: string;
+  authorRole: CommentAuthorRole;
+  /** Client-generated id — `addComment` is idempotent on it, so a retried post never duplicates a reply. */
+  clientId: string;
+  createdAt: Date;
+}
+
+/** Input of `TcPinpointStore.addComment`. */
+export interface CommentCreateInput {
+  body: string;
+  authorName: string;
+  authorEmail: string;
+  authorRole: CommentAuthorRole;
+  clientId: string;
+}
+
+/**
+ * Body of a comment `POST`. `feedbackId` is what tells it apart from a
+ * feedback submission on the same endpoint; `projectName` scopes the write
+ * to that project's feedbacks.
+ */
+export interface CommentPayload extends CommentCreateInput {
+  projectName: string;
+  feedbackId: string;
+}
+
+/** Body of a comment `DELETE` — `commentId` is what tells it apart from a feedback delete. */
+export interface CommentDeletePayload {
+  projectName: string;
+  feedbackId: string;
+  commentId: string;
+}
+
+// ---------------------------------------------------------------------------
+// Store errors — throw these from adapter implementations
+// ---------------------------------------------------------------------------
+
+/**
+ * Thrown when a record is not found during update or delete.
+ *
+ * Handlers translate this to HTTP 404. Adapters MUST throw this (not
+ * ORM-specific errors) so the handler layer remains ORM-agnostic.
+ */
+export class StoreNotFoundError extends Error {
+  readonly code = "STORE_NOT_FOUND" as const;
+  constructor(message = "Record not found", options?: ErrorOptions) {
+    super(message, options);
+    this.name = "StoreNotFoundError";
+  }
+}
+
+/**
+ * Thrown when a unique constraint is violated (e.g. duplicate `clientId`).
+ *
+ * Handlers use this to return the existing record instead of failing.
+ */
+export class StoreDuplicateError extends Error {
+  readonly code = "STORE_DUPLICATE" as const;
+  constructor(message = "Duplicate record", options?: ErrorOptions) {
+    super(message, options);
+    this.name = "StoreDuplicateError";
+  }
+}
+
+/**
+ * Thrown when a store accepts a mutation but cannot persist it — e.g.
+ * `localStorage` is full (QuotaExceededError). Adapters MUST throw this rather
+ * than swallow the failure, so callers learn the write was lost instead of
+ * seeing a phantom success.
+ */
+export class StorePersistenceError extends Error {
+  readonly code = "STORE_PERSISTENCE" as const;
+  constructor(message = "Failed to persist store mutation", options?: ErrorOptions) {
+    super(message, options);
+    this.name = "StorePersistenceError";
+  }
+}
+
+/**
+ * Thrown when a write would break a bound of the store contract — a
+ * `client` comment on a thread already holding `MAX_COMMENTS_PER_FEEDBACK`
+ * of them. Handlers translate this to HTTP 409.
+ */
+export class StoreLimitError extends Error {
+  readonly code = "STORE_LIMIT" as const;
+  constructor(message = "Store limit reached", options?: ErrorOptions) {
+    super(message, options);
+    this.name = "StoreLimitError";
+  }
+}
+
+/**
+ * Thrown when a value is longer than the store can hold, though the HTTP
+ * validation accepts it — on MySQL, Prisma maps a plain `String` to
+ * `VARCHAR(191)`. Handlers translate this to HTTP 422: the submission can
+ * never be stored as it is, so a client must not retry it.
+ */
+export class StoreValueTooLongError extends Error {
+  readonly code = "STORE_VALUE_TOO_LONG" as const;
+  constructor(message = "Value too long for the store", options?: ErrorOptions) {
+    super(message, options);
+    this.name = "StoreValueTooLongError";
+  }
+}
+
+/** Shape of any ORM error that carries a Prisma-style `code` field. */
+type CodedError<C extends string = string> = { code: C };
+
+function hasErrorCode<C extends string>(error: unknown, code: C): error is CodedError<C> {
+  return hasOwn(error, "code") && error.code === code;
+}
+
+/**
+ * Type guard — works for `StoreNotFoundError` and ORM-specific equivalents
+ * (e.g. Prisma P2025). Matches on the stable `code` too, for the same
+ * cross-bundle reason as {@link isStorePersistence}.
+ */
+export function isStoreNotFound(error: unknown): error is StoreNotFoundError | CodedError<"STORE_NOT_FOUND" | "P2025"> {
+  if (error instanceof StoreNotFoundError) return true;
+  // Another bundle's copy of core, or Prisma's P2025 (backwards compat)
+  return hasErrorCode(error, "STORE_NOT_FOUND") || hasErrorCode(error, "P2025");
+}
+
+/**
+ * Type guard — works for `StoreDuplicateError` and ORM-specific equivalents
+ * (e.g. Prisma P2002). Matches on the stable `code` too, for the same
+ * cross-bundle reason as {@link isStorePersistence}.
+ */
+export function isStoreDuplicate(
+  error: unknown,
+): error is StoreDuplicateError | CodedError<"STORE_DUPLICATE" | "P2002"> {
+  if (error instanceof StoreDuplicateError) return true;
+  // Another bundle's copy of core, or Prisma's P2002 (backwards compat)
+  return hasErrorCode(error, "STORE_DUPLICATE") || hasErrorCode(error, "P2002");
+}
+
+/**
+ * Type guard for `StorePersistenceError`. Matches on the stable `code` field
+ * in addition to `instanceof`: every consumer package bundles its own copy of
+ * core (tsup `noExternal`), so an instance thrown by one package fails an
+ * `instanceof` check against another package's class identity.
+ */
+export function isStorePersistence(error: unknown): error is StorePersistenceError | CodedError<"STORE_PERSISTENCE"> {
+  if (error instanceof StorePersistenceError) return true;
+  return hasErrorCode(error, "STORE_PERSISTENCE");
+}
+
+/** Type guard for `StoreLimitError`, matching on `code` for the same cross-bundle reason as {@link isStorePersistence}. */
+export function isStoreLimit(error: unknown): error is StoreLimitError | CodedError<"STORE_LIMIT"> {
+  if (error instanceof StoreLimitError) return true;
+  return hasErrorCode(error, "STORE_LIMIT");
+}
+
+/** Type guard for `StoreValueTooLongError`, matching on `code` for the same cross-bundle reason as {@link isStorePersistence}. */
+export function isStoreValueTooLong(
+  error: unknown,
+): error is StoreValueTooLongError | CodedError<"STORE_VALUE_TOO_LONG"> {
+  if (error instanceof StoreValueTooLongError) return true;
+  return hasErrorCode(error, "STORE_VALUE_TOO_LONG");
+}
+
+// ---------------------------------------------------------------------------
+// Store helpers — shared conversion logic for adapters
+// ---------------------------------------------------------------------------
+
+/** Flatten a widget `AnnotationPayload` (nested anchor + rect) into a flat `AnnotationCreateInput`. */
+export function flattenAnnotation(ann: AnnotationPayload): AnnotationCreateInput {
+  return {
+    cssSelector: ann.anchor.cssSelector,
+    xpath: ann.anchor.xpath,
+    textSnippet: ann.anchor.textSnippet,
+    elementTag: ann.anchor.elementTag,
+    elementId: ann.anchor.elementId,
+    textPrefix: ann.anchor.textPrefix,
+    textSuffix: ann.anchor.textSuffix,
+    fingerprint: ann.anchor.fingerprint,
+    neighborText: ann.anchor.neighborText,
+    anchorKey: ann.anchor.anchorKey ?? null,
+    xPct: ann.rect.xPct,
+    yPct: ann.rect.yPct,
+    wPct: ann.rect.wPct,
+    hPct: ann.rect.hPct,
+    scrollX: ann.scrollX,
+    scrollY: ann.scrollY,
+    viewportW: ann.viewportW,
+    viewportH: ann.viewportH,
+    devicePixelRatio: ann.devicePixelRatio,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Abstract Store — adapter pattern
+// ---------------------------------------------------------------------------
+
+/**
+ * Outcome of `TcPinpointStore.createFeedbackIfAbsent` — the record plus whether
+ * this very call inserted it.
+ */
+export interface FeedbackCreateOutcome {
+  feedback: FeedbackRecord;
+  /**
+   * `true` when this call inserted the record, `false` when a record with the
+   * same `clientId` already existed and is returned instead (a replay, or a
+   * concurrent request that won the race).
+   */
+  created: boolean;
+}
+
+/** Paginated result returned by `TcPinpointStore.getFeedbacks`. */
+export interface FeedbackPage {
+  feedbacks: FeedbackRecord[];
+  total: number;
+}
+
+/**
+ * Abstract storage interface for PinPoint.
+ *
+ * Any adapter (Prisma, Drizzle, raw SQL, localStorage, etc.) implements this
+ * interface. The HTTP handler and widget `StoreClient` operate against
+ * `TcPinpointStore`, decoupled from the storage backend.
+ *
+ * ## Error contract
+ *
+ * - **`updateFeedback` / `deleteFeedback`**: throw `StoreNotFoundError` when
+ *   the record does not exist.
+ * - **`createFeedback`**: either return the existing record on duplicate
+ *   `clientId` (idempotent) or throw `StoreDuplicateError`. The handler
+ *   handles both patterns — but only a throw, or the optional
+ *   `createFeedbackIfAbsent`, tells it the record was not inserted by this
+ *   call; stores that return the existing record should implement
+ *   `createFeedbackIfAbsent` so creation side effects never run twice.
+ * - **All mutations**: when a write is accepted but cannot be persisted
+ *   (e.g. storage quota), throw `StorePersistenceError` instead of reporting
+ *   a phantom success. Detect it with `isStorePersistence`.
+ * - Other methods should not throw on empty results — return empty arrays or `null`.
+ */
+export interface TcPinpointStore {
+  /** Create a feedback with its annotations. Idempotent on `clientId` — return existing record on duplicate, or throw `StoreDuplicateError`. Throws `StorePersistenceError` when the write cannot be persisted. */
+  createFeedback(data: FeedbackCreateInput): Promise<FeedbackRecord>;
+  /** Paginated query with optional filters. Returns empty array (not error) when no results. */
+  getFeedbacks(query: FeedbackQuery): Promise<FeedbackPage>;
+  /** Lookup by client-generated UUID. Returns `null` (not error) when not found. */
+  findByClientId(clientId: string): Promise<FeedbackRecord | null>;
+  /** Update status/resolvedAt. Throws `StoreNotFoundError` if `id` does not exist, `StorePersistenceError` when the write cannot be persisted. */
+  updateFeedback(id: string, data: FeedbackUpdateInput): Promise<FeedbackRecord>;
+  /** Delete a single record. Throws `StoreNotFoundError` if `id` does not exist, `StorePersistenceError` when the write cannot be persisted. */
+  deleteFeedback(id: string): Promise<void>;
+  /** Bulk delete all feedbacks for a project. No-op (not error) if none exist. Throws `StorePersistenceError` when the write cannot be persisted. */
+  deleteAllFeedbacks(projectName: string): Promise<void>;
+  /**
+   * Optional — return `true` when the record with `id` belongs to
+   * `projectName`, `false` otherwise (including when it does not exist).
+   *
+   * HTTP handlers use this to reject cross-project PATCH/DELETE requests.
+   * Implement it whenever your store serves multiple projects; when absent,
+   * handlers skip the ownership check and rely on `id` alone.
+   */
+  verifyProjectOwnership?(id: string, projectName: string): Promise<boolean>;
+  /**
+   * Optional — `createFeedback` that reports whether this call inserted the
+   * record (`created: true`) or found an existing one with the same
+   * `clientId` (`created: false`). The dedup check and the insert must be
+   * atomic, like `createFeedback`'s: of N concurrent calls with the same
+   * `clientId`, exactly one may report `created: true`, and all must return
+   * that same record. `createCollectionStore` guarantees this within one
+   * store instance by serializing its mutations; stores shared across
+   * processes need an atomic backend primitive (unique constraint,
+   * transaction, compare-and-set).
+   *
+   * HTTP handlers prefer it over `createFeedback` to fire creation side
+   * effects (webhooks) exactly once when concurrent requests race on the
+   * same `clientId`. Stores whose `createFeedback` throws
+   * `StoreDuplicateError` on a duplicate already give that signal and may
+   * leave it out.
+   */
+  createFeedbackIfAbsent?(data: FeedbackCreateInput): Promise<FeedbackCreateOutcome>;
+  /**
+   * Optional — append a comment to the thread of feedback `feedbackId` and
+   * return it. Idempotent on `data.clientId`: when a comment with that
+   * `clientId` exists, on any thread, return it unchanged (HTTP handlers
+   * refuse a replay aimed at another thread).
+   *
+   * Throws `StoreNotFoundError` when the feedback does not exist,
+   * `StoreLimitError` when a `client` comment meets a thread already holding
+   * `MAX_COMMENTS_PER_FEEDBACK` of them (a `team` comment is never refused
+   * for it), `StorePersistenceError` when the
+   * write cannot be persisted. A comment is not a change of the feedback
+   * itself: its `updatedAt` stays as it was.
+   *
+   * A store that implements it returns every feedback's thread on
+   * `FeedbackRecord.comments`, oldest first, and deletes a thread with its
+   * feedback. A store without it (and `deleteComment`) has no threads:
+   * HTTP handlers serve empty threads and answer comment writes with 501.
+   */
+  addComment?(feedbackId: string, data: CommentCreateInput): Promise<CommentRecord>;
+  /**
+   * Optional — delete comment `commentId` from the thread of `feedbackId`.
+   * Scoped to that thread, which the caller was authorized for: throws
+   * `StoreNotFoundError` when the feedback does not exist or the comment is
+   * not on its thread, `StorePersistenceError` when the write cannot be
+   * persisted.
+   */
+  deleteComment?(feedbackId: string, commentId: string): Promise<void>;
+}
+
+/** Payload sent from the widget to the server when submitting feedback. */
+export interface FeedbackPayload {
+  projectName: string;
+  type: FeedbackType;
+  message: string;
+  url: string;
+  /**
+   * Parameterized URL template (e.g. `/orders/:orderId`) supplied by
+   * `TcPinpointConfig.getPageScope()`. Null when the host did not provide one.
+   */
+  urlPattern?: string | null | undefined;
+  viewport: string;
+  userAgent: string;
+  authorName: string;
+  authorEmail: string;
+  annotations: AnnotationPayload[];
+  /** Client-generated UUID for deduplication */
+  clientId: string;
+  /**
+   * Base64 JPEG `data:` URL of the annotated area. Captured by the widget
+   * when `enableScreenshot: true` is set in `TcPinpointConfig`. Null when
+   * disabled or when capture failed silently.
+   */
+  screenshotDataUrl?: string | null | undefined;
+  /**
+   * Annotation rect position within the screenshot image — see
+   * `ScreenshotRegion`. Null/absent when no screenshot was captured or the
+   * capture predates contextual framing.
+   */
+  screenshotRegion?: ScreenshotRegion | null | undefined;
+  /**
+   * Snapshot of the last few console messages and failed network requests
+   * captured at submit time when `captureDiagnostics` is enabled.
+   */
+  diagnostics?: DiagnosticsSnapshot | null | undefined;
+}
+
+/** Single source of truth for console diagnostic severity levels. */
+export const CONSOLE_DIAGNOSTIC_LEVELS = ["log", "info", "warn", "error"] as const;
+/** Severity levels persisted in `ConsoleDiagnosticEntry`. */
+export type ConsoleDiagnosticLevel = (typeof CONSOLE_DIAGNOSTIC_LEVELS)[number];
+
+/** A single console entry captured by `ConsoleBuffer`. */
+export interface ConsoleDiagnosticEntry {
+  level: ConsoleDiagnosticLevel;
+  /** ISO 8601 timestamp captured at log time. */
+  timestamp: string;
+  /** Best-effort string representation of the original console args. */
+  message: string;
+}
+
+/** A single failed network request captured by `NetworkBuffer`. */
+export interface NetworkDiagnosticEntry {
+  url: string;
+  method: string;
+  /** HTTP status; 0 when the request never reached the server. */
+  status: number;
+  /** End-to-end duration in ms. */
+  durationMs: number;
+  /** ISO 8601 timestamp at the moment the request was initiated. */
+  timestamp: string;
+}
+
+/**
+ * Diagnostics captured by the widget when `captureDiagnostics` is enabled.
+ *
+ * Both arrays are bounded (default: 50 console / 20 network). Adapters that
+ * support diagnostics should persist this as a JSON blob alongside the
+ * feedback so reviewers can replay the context that led to the report.
+ */
+export interface DiagnosticsSnapshot {
+  console: ConsoleDiagnosticEntry[];
+  network: NetworkDiagnosticEntry[];
+}
+
+// ---------------------------------------------------------------------------
+// Annotation — multi-selector anchoring (Hypothesis / W3C Web Annotation)
+// ---------------------------------------------------------------------------
+
+/**
+ * Length caps for `AnchorData.elementTag` / `elementId`, shared by the widget
+ * (which bounds what it captures) and the HTTP adapter (which rejects a longer
+ * tag and drops a longer id) so the two can't drift. 191 fits Prisma's default `String` column
+ * on MySQL (`VARCHAR(191)`); real tag names and ids are far shorter.
+ */
+export const ANCHOR_ELEMENT_TAG_MAX = 191;
+export const ANCHOR_ELEMENT_ID_MAX = 191;
+
+/** DOM anchoring data for re-attaching annotations to page elements. */
+export interface AnchorData {
+  /**
+   * CSS selector generated by @medv/finder — primary anchor. Inside open
+   * shadow roots: one selector per tree, outermost host first, joined by
+   * `" >>> "` (e.g. `"#pricing >>> .plan-title"`).
+   */
+  cssSelector: string;
+  /**
+   * XPath — fallback 1. Inside a shadow root it is relative to that root
+   * (`./…`) and informational only: XPath cannot enter shadow trees.
+   */
+  xpath: string;
+  /** First ~120 chars of element innerText — empty string if none */
+  textSnippet: string;
+  /** Tag name for validation (e.g. "DIV", "SECTION") */
+  elementTag: string;
+  /** Element id attribute if available — most stable */
+  elementId?: string | undefined;
+  /** ~32 chars of text before this element in document flow (disambiguation) */
+  textPrefix: string;
+  /** ~32 chars of text after this element in document flow (disambiguation) */
+  textSuffix: string;
+  /** Structural fingerprint: "childCount:siblingIdx:attrHash" */
+  fingerprint: string;
+  /** Text content of adjacent sibling elements (context) */
+  neighborText: string;
+  /**
+   * Semantic anchor identifier from the closest ancestor's `data-feedback-anchor`
+   * attribute. When set, this is the highest-priority re-anchoring signal —
+   * hosts deliberately place these on layout/section roots that survive
+   * viewport changes and DOM refactors.
+   */
+  anchorKey?: string | null | undefined;
+}
+
+/**
+ * Where the client's annotation rect sits within the captured screenshot,
+ * as fractions [0, 1] of the image dimensions. The widget captures context
+ * around the drawn rect and records the rect's position here so dashboards
+ * can re-render the annotation on top of the image. Survives downscaling
+ * (fractions are resolution-independent).
+ */
+export interface ScreenshotRegion {
+  /** X offset of the rect as fraction of image width — [0, 1] */
+  xPct: number;
+  /** Y offset of the rect as fraction of image height — [0, 1] */
+  yPct: number;
+  /** Rect width as fraction of image width — [0, 1] */
+  wPct: number;
+  /** Rect height as fraction of image height — [0, 1] */
+  hPct: number;
+}
+
+/** Drawn rectangle coordinates as percentages relative to the anchor element. */
+export interface RectData {
+  /** X offset as fraction of anchor element width — must be in range [0, 1] */
+  xPct: number;
+  /** Y offset as fraction of anchor element height — must be in range [0, 1] */
+  yPct: number;
+  /** Width as fraction of anchor element width — must be in range [0, 1] */
+  wPct: number;
+  /** Height as fraction of anchor element height — must be in range [0, 1] */
+  hPct: number;
+}
+
+/** Annotation data sent as part of a feedback submission. */
+export interface AnnotationPayload {
+  anchor: AnchorData;
+  rect: RectData;
+  scrollX: number;
+  scrollY: number;
+  viewportW: number;
+  viewportH: number;
+  devicePixelRatio: number;
+}
+
+// ---------------------------------------------------------------------------
+// API responses
+// ---------------------------------------------------------------------------
+
+/**
+ * Feedback record as returned by the API — derived from
+ * {@link FeedbackRecord}: dates are serialized to ISO strings and `clientId`
+ * is omitted (server-side dedup concern, never exposed on the wire), on the
+ * record and on each comment of its thread. Adding a field to
+ * `FeedbackRecord` updates this type automatically.
+ *
+ * Note: `authorEmail` may be an empty string — HTTP adapters redact it for
+ * unauthenticated requests; the full value requires a Bearer-authenticated
+ * request.
+ */
+export type FeedbackResponse = Prettify<
+  Serialized<Omit<FeedbackRecord, "clientId" | "comments">> & {
+    /** The thread, oldest first — always sent by `@tc-pinpoint/server`, absent from servers that predate comments. */
+    comments?: CommentResponse[] | undefined;
+    /**
+     * What the requester may do with this feedback — always sent by
+     * `@tc-pinpoint/server`. Absent from servers that predate it, and in store
+     * mode: nothing is refused then.
+     */
+    permissions?: FeedbackPermissions | undefined;
+  }
+>;
+
+/**
+ * What a requester may do with one feedback, as the server's access policy
+ * decides — so clients hide the actions it would refuse. The server still
+ * enforces every one of them.
+ */
+export interface FeedbackPermissions {
+  /** Change its status: resolve, reopen, … */
+  canChangeStatus: boolean;
+  /** Delete it. */
+  canDelete: boolean;
+  /** Reply in its thread. */
+  canComment: boolean;
+  /** Delete replies from its thread. */
+  canDeleteComment: boolean;
+}
+
+/** What a requester may do with a whole project, sent with each list. */
+export interface FeedbackListPermissions {
+  /** Delete every feedback of the project at once. */
+  canDeleteAll: boolean;
+}
+
+/**
+ * Annotation record as returned by the API — {@link AnnotationRecord} with
+ * `createdAt` serialized to an ISO string.
+ */
+export type AnnotationResponse = Prettify<Serialized<AnnotationRecord>>;
+
+/**
+ * Comment as returned by the API — {@link CommentRecord} with `createdAt`
+ * serialized and `clientId` omitted, like on `FeedbackResponse`. Its
+ * `authorEmail` is redacted on the same terms as the feedback's.
+ */
+export type CommentResponse = Prettify<Serialized<Omit<CommentRecord, "clientId">>>;
+
+/** What the store behind an endpoint supports — advertised on every list response. */
+export interface TcPinpointCapabilities {
+  /** Whether comments can be posted: the store implements `addComment`. */
+  comments: boolean;
+  /**
+   * Whether comments can be deleted: the store implements `deleteComment`.
+   * Sent by `@tc-pinpoint/server`; a client that does not delete (the widget)
+   * leaves it out.
+   */
+  deleteComments?: boolean | undefined;
+}
+
+/** Paginated `FeedbackResponse` shape returned by the API. */
+export interface FeedbackResponseList {
+  feedbacks: FeedbackResponse[];
+  total: number;
+  /** Always sent by `@tc-pinpoint/server` — absent from servers that predate it. */
+  capabilities?: TcPinpointCapabilities | undefined;
+  /** Always sent by `@tc-pinpoint/server` — absent from servers that predate it. */
+  permissions?: FeedbackListPermissions | undefined;
+}

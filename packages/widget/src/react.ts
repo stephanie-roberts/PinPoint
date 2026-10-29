@@ -1,0 +1,178 @@
+/**
+ * React helper for `@tc-pinpoint/widget`.
+ *
+ * `useTcPinpoint` initialises the widget once for the lifetime of the component
+ * tree, even under React.StrictMode's double-invoke effect dance. Returns the
+ * `TcPinpointInstance` so consumers can drive `open()` / `close()` / `refresh()`
+ * programmatically from anywhere in their tree.
+ *
+ * Why a dedicated entry instead of a snippet in the README:
+ * - StrictMode mounts every effect twice in dev, which the obvious
+ *   `useEffect(() => { const i = initTcPinpoint(...); return i.destroy }, [])`
+ *   handles fine for *re-mount*, but not for the brief window where the
+ *   second mount sees a still-alive widget (the widget's own singleton guard
+ *   logs an info message and returns the existing instance — surprising
+ *   noise for developers).
+ * - The hook also captures the latest `config` in a ref so callbacks (e.g.
+ *   `onFeedbackSent`) read closure values without re-initialising the widget.
+ *
+ * Peer dep on react ≥ 18 (declared as optional in package.json), so projects
+ * that never import `@tc-pinpoint/widget/react` don't need React installed.
+ */
+
+import type {
+  TcPinpointConfig,
+  TcPinpointInstance,
+  TcPinpointPanelAction,
+  TcPinpointPanelActionFeedback,
+} from "@tc-pinpoint/core";
+import { useEffect, useRef, useState } from "react";
+import { initTcPinpoint } from "./index.js";
+
+/**
+ * Stable stand-ins for `config.panelActions`. The list itself — ids, labels,
+ * icons, static hrefs — is read once at mount like every other option, but
+ * each callback (`visible`, `onAction`, a function `href`) resolves the
+ * action with the same id in the latest config at call time, so a handler
+ * closing over fresh state (an auth token, the current user) runs with it.
+ */
+function freshPanelActions(ref: { readonly current: TcPinpointConfig }): TcPinpointConfig["panelActions"] {
+  const actions = ref.current.panelActions;
+  if (!Array.isArray(actions)) return actions;
+  return actions.map((initial) => {
+    // Only well-formed entries are wrapped. Anything else goes through
+    // untouched, so the widget still warns about it and skips it.
+    if (typeof initial !== "object" || initial === null) return initial;
+    const latest = (): TcPinpointPanelAction => ref.current.panelActions?.find((a) => a?.id === initial.id) ?? initial;
+    // Truthiness, as in the widget: a plain-JS `visible` returning `undefined` hides the action.
+    const visible = (fb: TcPinpointPanelActionFeedback) => {
+      const current = latest().visible;
+      return current ? Boolean(current(fb)) : true;
+    };
+    const { onAction, href } = initial;
+    if (typeof onAction === "function" && href === undefined) {
+      return { ...initial, visible, onAction: (fb, ctx) => (latest().onAction ?? onAction)(fb, ctx) };
+    }
+    if (onAction !== undefined) return initial;
+    if (typeof href === "string") return { ...initial, visible };
+    if (typeof href !== "function") return initial;
+    return {
+      ...initial,
+      visible,
+      href: (fb) => {
+        const current = latest().href ?? href;
+        return typeof current === "function" ? current(fb) : current;
+      },
+    };
+  });
+}
+
+/**
+ * Initialise the PinPoint widget for the lifetime of the calling component.
+ *
+ * Safe to call from a Server Component file as long as the component itself
+ * is marked `"use client"` — the hook bails out cleanly on the server because
+ * `useEffect` never runs there.
+ *
+ * @example Next.js App Router
+ * ```tsx
+ * "use client"
+ * import { useTcPinpoint } from "@tc-pinpoint/widget/react"
+ *
+ * export function FeedbackProvider({ children }: { children: React.ReactNode }) {
+ *   useTcPinpoint({
+ *     endpoint: "/api/tcpinpoint",
+ *     projectName: "my-app",
+ *   })
+ *   return <>{children}</>
+ * }
+ * ```
+ *
+ * @example Driving the panel programmatically
+ * ```tsx
+ * "use client"
+ * import { useTcPinpoint } from "@tc-pinpoint/widget/react"
+ *
+ * export function HelpButton() {
+ *   const widget = useTcPinpoint({ endpoint: "/api/tcpinpoint", projectName: "my-app" })
+ *   return <button onClick={() => widget?.open()}>Need help?</button>
+ * }
+ * ```
+ */
+export function useTcPinpoint(config: TcPinpointConfig): TcPinpointInstance | null {
+  // Keep callbacks fresh without retriggering the init effect. The widget
+  // captures the *initial* config; we mirror updated handlers via the bridge
+  // below so consumers can change `onFeedbackSent` between renders without
+  // tearing the widget down.
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  const [instance, setInstance] = useState<TcPinpointInstance | null>(null);
+
+  useEffect(() => {
+    // `mounted` flag deals with the StrictMode double-effect: the cleanup of
+    // the first run fires between the two `init` calls, so we set the flag
+    // false in cleanup and skip late state updates. The widget itself has
+    // its own singleton guard, so even if we managed to call init() twice
+    // in a row we'd get the same instance back.
+    let mounted = true;
+
+    // The widget wires config callbacks once at init, so passing the host's
+    // functions directly would freeze them at mount time. Instead we hand
+    // the widget stable wrappers that read the ref at call time — hosts can
+    // swap `onFeedbackSent`, `onError`, etc. between renders without
+    // recreating the widget. (Re-subscribing the host callbacks through
+    // `instance.on` on top of the config wiring would call them twice per
+    // event — the config wrappers are the single delivery path.)
+    // The `mounted` guard keeps callbacks silent after unmount.
+    const created = initTcPinpoint({
+      ...configRef.current,
+      onSkip: (reason) => {
+        if (mounted) configRef.current.onSkip?.(reason);
+      },
+      onOpen: () => {
+        if (mounted) configRef.current.onOpen?.();
+      },
+      onClose: () => {
+        if (mounted) configRef.current.onClose?.();
+      },
+      onFeedbackSent: (fb) => {
+        if (mounted) configRef.current.onFeedbackSent?.(fb);
+      },
+      onCommentAdded: (comment) => {
+        if (mounted) configRef.current.onCommentAdded?.(comment);
+      },
+      onError: (error) => {
+        if (mounted) configRef.current.onError?.(error);
+      },
+      onAnnotationStart: () => {
+        if (mounted) configRef.current.onAnnotationStart?.();
+      },
+      onAnnotationEnd: () => {
+        if (mounted) configRef.current.onAnnotationEnd?.();
+      },
+      panelActions: freshPanelActions(configRef),
+    });
+    if (!mounted) {
+      // Cleanup already ran (StrictMode dev edge case) — tear down to avoid
+      // leaving a dangling widget in the DOM.
+      created.destroy();
+      return;
+    }
+
+    setInstance(created);
+
+    return () => {
+      mounted = false;
+      created.destroy();
+      setInstance(null);
+    };
+    // The init effect intentionally has an empty dep array — config changes
+    // are forwarded through configRef.current, not through re-init. Hosts
+    // that need a fresh widget (e.g. swapping endpoint at runtime) should
+    // unmount the component that owns the hook.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return instance;
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@tc-pinpoint/app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PinPoint: snag websites with a pinned feedback widget, and work through the snags in one inbox",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "dev": "node server.js --dev",
+    "build": "vite build",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@tc-pinpoint/adapter-kit": "*",
+    "@tc-pinpoint/server": "*",
+    "@tc-pinpoint/widget": "*",
+    "alpinejs": "^3.14.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.11",
+    "tailwindcss": "^4.1.11",
+    "vite": "^8.0.0"
+  }
+}

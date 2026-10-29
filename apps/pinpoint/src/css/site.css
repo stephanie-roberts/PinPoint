@@ -1,0 +1,146 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+@import "tailwindcss";
+
+@source inline("bg-{bug,change,question,other}");
+
+/*
+        Custom variables
+*/
+
+@theme {
+  --breakpoint-wide: 1440px;
+
+  --color-white: rgba(255, 255, 255, 1);
+  --color-black: rgba(10, 10, 10, 1);
+  --color-grey: rgba(110, 110, 110, 1);
+  --color-line: rgba(231, 231, 231, 1);
+  --color-mist: rgba(246, 246, 244, 1);
+  --color-yellow: rgba(254, 214, 49, 1);
+  --color-light-yellow: rgba(254, 214, 49, 0.3);
+  --color-danger: rgba(214, 69, 54, 1);
+
+  /* feedback types */
+  --color-bug: rgba(214, 69, 54, 1);
+  --color-change: rgba(232, 156, 22, 1);
+  --color-question: rgba(0, 91, 164, 1);
+  --color-other: rgba(128, 128, 128, 1);
+
+  /* statuses */
+  --color-open: rgba(0, 91, 164, 1);
+  --color-progress: rgba(232, 156, 22, 1);
+  --color-resolved: rgba(66, 140, 52, 1);
+  --color-wontfix: rgba(128, 128, 128, 1);
+
+  --font-body: "Inter", sans-serif;
+}
+
+@layer utilities {
+  /* status tabs */
+  .tabs button {
+    @apply relative h-full px-[2px] pb-[14px] pt-[16px] text-sm text-grey transition duration-300 hover:text-black md:text-base;
+  }
+
+  .tabs button[aria-pressed="true"] {
+    @apply font-bold text-black after:absolute after:inset-x-0 after:bottom-[-1px] after:h-[3px] after:bg-yellow after:content-[''];
+  }
+
+  .tabs button .count {
+    @apply ml-[6px] text-xs font-medium text-grey;
+  }
+
+  /* selects with a chevron */
+  .select {
+    @apply relative inline-flex items-center;
+  }
+
+  .select select {
+    @apply cursor-pointer appearance-none bg-transparent pr-[20px] text-xs font-bold outline-none md:text-sm;
+  }
+
+  .select svg {
+    @apply pointer-events-none absolute right-0 top-1/2 mt-[1px] w-[11px] -translate-y-1/2;
+  }
+
+  /* feedback rows */
+  .row {
+    @apply block w-full border-b border-line px-[10px] py-[18px] text-left transition duration-300 md:px-[20px] md:py-[22px] hover:bg-mist;
+  }
+
+  .row[aria-current="true"] {
+    @apply bg-light-yellow hover:bg-light-yellow;
+  }
+
+  .row:focus-visible {
+    @apply outline-2 -outline-offset-2 outline-black;
+  }
+
+  /* small uppercase labels in the drawer */
+  .label {
+    @apply mb-[10px] block text-[11px] font-bold uppercase tracking-[0.08em] text-grey;
+  }
+
+  .meta dt {
+    @apply text-xs text-grey;
+  }
+
+  .meta dd {
+    @apply mb-[14px] break-words text-sm;
+  }
+
+  .arrow-link {
+    @apply inline-flex items-center gap-[8px] border-b-2 border-black pb-[2px] text-sm font-medium transition duration-300 hover:border-yellow hover:text-black;
+  }
+
+  .btn {
+    @apply inline-flex h-[44px] items-center justify-center gap-[8px] rounded-full bg-black px-[22px] text-sm font-medium text-white transition duration-300 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-outline {
+    @apply inline-flex h-[44px] items-center justify-center gap-[8px] rounded-full border border-black px-[22px] text-sm font-medium transition duration-300 hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-danger {
+    @apply inline-flex h-[44px] items-center justify-center rounded-full bg-danger px-[22px] text-sm font-medium text-white transition duration-300 hover:bg-danger/85;
+  }
+
+  .input {
+    @apply block w-full border-b border-black bg-transparent py-[10px] text-sm outline-none transition duration-300 placeholder:text-grey focus:border-yellow md:text-base;
+  }
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  color: var(--color-black);
+  background: var(--color-white);
+}
+
+a {
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-black);
+  outline-offset: 2px;
+}
+
+[x-cloak] {
+  /* biome-ignore lint/complexity/noImportantStyles: Alpine must hide x-cloak elements whatever else styles them */
+  display: none !important;
+}
+
+/* biome-ignore-start lint/complexity/noImportantStyles: reduced motion has to win over every transition */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: reduced motion */

@@ -1,0 +1,282 @@
+// @vitest-environment jsdom
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NetworkBuffer } from "../../src/diagnostics/network-buffer.js";
+
+const originalFetch = globalThis.fetch;
+const originalXhrOpen = XMLHttpRequest.prototype.open;
+const originalXhrSend = XMLHttpRequest.prototype.send;
+
+describe("NetworkBuffer — fetch", () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("captures fetch responses with status >= 400", async () => {
+    fetchSpy.mockResolvedValue(new Response("nope", { status: 500 }));
+    const buffer = new NetworkBuffer();
+    const res = await fetch("/api/broken", { method: "POST" });
+    expect(res.status).toBe(500);
+    const entries = buffer.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      url: "/api/broken",
+      method: "POST",
+      status: 500,
+    });
+    expect(typeof entries[0]?.durationMs).toBe("number");
+    expect(entries[0]?.timestamp).toMatch(/T/);
+    buffer.dispose();
+  });
+
+  it("skips fetch responses with status < 400", async () => {
+    fetchSpy.mockResolvedValue(new Response("ok", { status: 200 }));
+    const buffer = new NetworkBuffer();
+    await fetch("/api/ok");
+    expect(buffer.getEntries()).toHaveLength(0);
+    buffer.dispose();
+  });
+
+  it("captures network errors (status = 0) and re-throws", async () => {
+    fetchSpy.mockRejectedValue(new TypeError("Failed to fetch"));
+    const buffer = new NetworkBuffer();
+    await expect(fetch("/api/down")).rejects.toBeInstanceOf(TypeError);
+    const entries = buffer.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.status).toBe(0);
+    expect(entries[0]?.url).toBe("/api/down");
+    buffer.dispose();
+  });
+
+  it("ring-buffer wraps at the configured maxEntries", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 500 }));
+    const buffer = new NetworkBuffer(3);
+    for (let i = 0; i < 5; i++) {
+      await fetch(`/api/err-${i}`);
+    }
+    const entries = buffer.getEntries();
+    expect(entries).toHaveLength(3);
+    expect(entries[0]?.url).toBe("/api/err-2");
+    expect(entries[2]?.url).toBe("/api/err-4");
+    buffer.dispose();
+  });
+
+  it("never holds more than the server's 20-entry cap, whatever size is configured", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 500 }));
+    const buffer = new NetworkBuffer(100);
+    for (let i = 0; i < 30; i++) {
+      await fetch(`/api/err-${i}`);
+    }
+    const entries = buffer.getEntries();
+    expect(entries).toHaveLength(20);
+    expect(entries[19]?.url).toBe("/api/err-29");
+    buffer.dispose();
+  });
+
+  it("falls back to the default size for a NaN size", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 500 }));
+    const buffer = new NetworkBuffer(Number.NaN);
+    for (let i = 0; i < 30; i++) {
+      await fetch(`/api/err-${i}`);
+    }
+    expect(buffer.getEntries()).toHaveLength(20);
+    buffer.dispose();
+  });
+
+  it("clamps each entry to the server schema (durationMs, method, status)", async () => {
+    // A request open > 10 min, an exotic long method, and a non-standard
+    // status (LinkedIn's 999) would each fail adapter-prisma's validation.
+    const nowSpy = vi.spyOn(performance, "now").mockReturnValueOnce(0).mockReturnValueOnce(700_000);
+    fetchSpy.mockResolvedValue({ ok: false, status: 999 } as Response);
+    const buffer = new NetworkBuffer();
+    await fetch("/api/slow", { method: "X".repeat(30) });
+    nowSpy.mockRestore();
+    const entry = buffer.getEntries()[0];
+    expect(entry?.durationMs).toBe(600_000);
+    expect(entry?.method).toBe("X".repeat(20));
+    // 999 is not a 5xx — clamping it to 599 would misreport it as one.
+    expect(entry?.status).toBe(0);
+    buffer.dispose();
+  });
+
+  it("never cuts a long URL between the two halves of an emoji", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 500 }));
+    const buffer = new NetworkBuffer();
+    const kept = `/${"a".repeat(1997)}`;
+    await fetch(`${kept}\u{1F680}/rest`);
+    expect(buffer.getEntries()[0]?.url).toBe(`${kept}…`);
+    buffer.dispose();
+  });
+
+  it("records fetch URLs without their query string or hash (tokens never leave the browser)", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 401 }));
+    const buffer = new NetworkBuffer();
+    await fetch("/api/items?api_key=SECRET&token=abc#access_token=xyz");
+    await fetch(new Request("https://example.com/api/me?session=s3cr3t"));
+    const urls = buffer.getEntries().map((e) => e.url);
+    expect(urls).toEqual(["/api/items", "https://example.com/api/me"]);
+    buffer.dispose();
+  });
+
+  it("records a credentialed fetch URL without its userinfo (fetch rejects it after the wrapper read it)", async () => {
+    fetchSpy.mockRejectedValue(new TypeError("Request cannot be constructed from a URL that includes credentials"));
+    const buffer = new NetworkBuffer();
+    await expect(fetch("https://user:s3cr3t@api.example.com/v1/items?token=abc")).rejects.toBeInstanceOf(TypeError);
+    expect(buffer.getEntries()[0]?.url).toBe("https://api.example.com/v1/items");
+    buffer.dispose();
+  });
+
+  it("dispose restores the original fetch", () => {
+    const buffer = new NetworkBuffer();
+    expect(globalThis.fetch).not.toBe(fetchSpy);
+    buffer.dispose();
+    // After disposal we restore the *function we replaced*, which in this
+    // test was `fetchSpy` set in beforeEach.
+    expect(globalThis.fetch).toBe(fetchSpy);
+  });
+
+  it("extracts method from a Request input when init.method is undefined", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 404 }));
+    const buffer = new NetworkBuffer();
+    // jsdom's Request constructor requires an absolute URL.
+    const req = new Request("https://example.com/api/foo", { method: "DELETE" });
+    await fetch(req);
+    expect(buffer.getEntries()[0]?.method).toBe("DELETE");
+    expect(buffer.getEntries()[0]?.url).toBe("https://example.com/api/foo");
+    buffer.dispose();
+  });
+});
+
+describe("NetworkBuffer — XHR", () => {
+  afterEach(() => {
+    XMLHttpRequest.prototype.open = originalXhrOpen;
+    XMLHttpRequest.prototype.send = originalXhrSend;
+  });
+
+  it("captures XHR with status >= 400", async () => {
+    const buffer = new NetworkBuffer();
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "/xhr-bad");
+    // jsdom XHR transitions via dispatchEvent — synthesise a failure end-state.
+    // We do not actually issue a request; we simulate the loadend by manually
+    // dispatching it after setting a status.
+    xhr.send();
+    // Patch readonly status property for the test.
+    Object.defineProperty(xhr, "status", { value: 502, configurable: true });
+    xhr.dispatchEvent(new Event("loadend"));
+
+    const entries = buffer.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ method: "GET", url: "/xhr-bad", status: 502 });
+    buffer.dispose();
+  });
+
+  it("records XHR URLs without their query string or hash", () => {
+    const buffer = new NetworkBuffer();
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "/xhr-bad?api_key=SECRET#frag");
+    xhr.send();
+    Object.defineProperty(xhr, "status", { value: 500, configurable: true });
+    xhr.dispatchEvent(new Event("loadend"));
+    expect(buffer.getEntries()[0]?.url).toBe("/xhr-bad");
+    buffer.dispose();
+  });
+
+  it("records XHR URLs without their userinfo", () => {
+    const buffer = new NetworkBuffer();
+    // Loopback hosts: jsdom really issues the request.
+    const urls = ["https://user:s3cr3t@127.0.0.1/v1/items?token=abc", "//admin:hunter2@localhost/x"];
+    for (const url of urls) {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", url);
+      xhr.send();
+      Object.defineProperty(xhr, "status", { value: 401, configurable: true });
+      xhr.dispatchEvent(new Event("loadend"));
+    }
+    expect(buffer.getEntries().map((e) => e.url)).toEqual([
+      "https://127.0.0.1/v1/items",
+      `${location.protocol}//localhost/x`,
+    ]);
+    buffer.dispose();
+  });
+
+  it("skips XHR with successful status", () => {
+    const buffer = new NetworkBuffer();
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "/xhr-ok");
+    xhr.send();
+    Object.defineProperty(xhr, "status", { value: 200, configurable: true });
+    xhr.dispatchEvent(new Event("loadend"));
+    expect(buffer.getEntries()).toHaveLength(0);
+    buffer.dispose();
+  });
+
+  it("captures XHR network errors (status === 0)", () => {
+    const buffer = new NetworkBuffer();
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/xhr-network-err");
+    xhr.send();
+    Object.defineProperty(xhr, "status", { value: 0, configurable: true });
+    xhr.dispatchEvent(new Event("loadend"));
+    const entries = buffer.getEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.status).toBe(0);
+    expect(entries[0]?.method).toBe("POST");
+    buffer.dispose();
+  });
+});
+
+describe("NetworkBuffer — dispose() vs wrappers installed on top", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    XMLHttpRequest.prototype.open = originalXhrOpen;
+    XMLHttpRequest.prototype.send = originalXhrSend;
+  });
+
+  it("restores fetch when the widget's wrapper is still the one installed", () => {
+    const base = vi.fn() as unknown as typeof fetch;
+    globalThis.fetch = base;
+    const buffer = new NetworkBuffer();
+    expect(globalThis.fetch).not.toBe(base);
+    buffer.dispose();
+    expect(globalThis.fetch).toBe(base);
+  });
+
+  it("leaves a fetch wrapper installed on top of the widget's in place", () => {
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+    const buffer = new NetworkBuffer();
+    const widgetPatched = globalThis.fetch;
+
+    // A third-party SDK (error tracker, RUM agent) wraps fetch AFTER the widget.
+    const thirdParty: typeof fetch = (...args) => widgetPatched(...args);
+    globalThis.fetch = thirdParty;
+
+    buffer.dispose();
+
+    // Same rule the launcher applies to history.pushState: only restore when
+    // we are still the top of the chain — the other library keeps working.
+    expect(globalThis.fetch).toBe(thirdParty);
+  });
+
+  it("leaves XHR wrappers installed on top of the widget's in place", () => {
+    const buffer = new NetworkBuffer();
+    const widgetOpen = XMLHttpRequest.prototype.open;
+    const thirdPartyOpen = function (this: XMLHttpRequest, ...args: unknown[]) {
+      return (widgetOpen as unknown as (...a: unknown[]) => void).apply(this, args);
+    } as typeof XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = thirdPartyOpen;
+
+    buffer.dispose();
+
+    expect(XMLHttpRequest.prototype.open).toBe(thirdPartyOpen);
+    // `send` was still ours, so it is restored.
+    expect(XMLHttpRequest.prototype.send).toBe(originalXhrSend);
+  });
+});

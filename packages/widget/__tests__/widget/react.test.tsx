@@ -1,0 +1,359 @@
+// @vitest-environment jsdom
+
+import type {
+  CommentResponse,
+  FeedbackResponse,
+  TcPinpointConfig,
+  TcPinpointInstance,
+  TcPinpointPanelActionFeedback,
+  TcPinpointPanelButtonAction,
+  TcPinpointPanelLinkAction,
+} from "@tc-pinpoint/core";
+import { act, render } from "@testing-library/react";
+import { StrictMode, useEffect } from "react";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+
+// ---------------------------------------------------------------------------
+// Mock `initTcPinpoint` so we can observe call count, capture listeners, and
+// drive them directly without needing the full widget DOM.
+// ---------------------------------------------------------------------------
+
+type Listener = (...args: unknown[]) => void;
+
+interface MockedInstance extends TcPinpointInstance {
+  __emit: (event: string, ...args: unknown[]) => void;
+  __destroyed: boolean;
+}
+
+let mockInstances: MockedInstance[] = [];
+let initSpy: Mock<(config: TcPinpointConfig) => MockedInstance>;
+
+vi.mock(new URL("../../src/index.js", import.meta.url).pathname, () => ({
+  initTcPinpoint: (config: TcPinpointConfig) => initSpy(config),
+  __esModule: true,
+}));
+
+beforeEach(() => {
+  mockInstances = [];
+  initSpy = vi.fn((_config: TcPinpointConfig) => {
+    const listeners = new Map<string, Set<Listener>>();
+    const instance: MockedInstance = {
+      destroy: vi.fn(() => {
+        instance.__destroyed = true;
+      }),
+      open: vi.fn(),
+      close: vi.fn(),
+      refresh: vi.fn(),
+      focusFeedback: vi.fn(() => true),
+      on: <K extends string>(event: K, listener: Listener) => {
+        let set = listeners.get(event);
+        if (!set) {
+          set = new Set();
+          listeners.set(event, set);
+        }
+        set.add(listener);
+        return () => set?.delete(listener);
+      },
+      off: (event: string, listener: Listener) => {
+        listeners.get(event)?.delete(listener);
+      },
+      __emit: (event: string, ...args: unknown[]) => {
+        for (const l of listeners.get(event) ?? []) l(...args);
+      },
+      __destroyed: false,
+    } as MockedInstance;
+    mockInstances.push(instance);
+    return instance;
+  });
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+// Import after mock setup so the alias resolves to our spy.
+import { normalizePanelActions } from "../../src/panel-actions.js";
+import { useTcPinpoint } from "../../src/react.js";
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+function Probe({
+  config,
+  onInstance,
+}: {
+  config: TcPinpointConfig;
+  onInstance?: (i: TcPinpointInstance | null) => void;
+}) {
+  const instance = useTcPinpoint(config);
+  useEffect(() => {
+    onInstance?.(instance);
+  }, [instance, onInstance]);
+  return null;
+}
+
+describe("useTcPinpoint", () => {
+  it("initialises the widget once on mount and destroys on unmount", () => {
+    const config: TcPinpointConfig = { endpoint: "/api/tcpinpoint", projectName: "test" };
+    const { unmount } = render(<Probe config={config} />);
+
+    expect(initSpy).toHaveBeenCalledTimes(1);
+    // The hook overrides the callback props with stable ref-reading
+    // wrappers — the transport/config fields must pass through untouched.
+    expect(initSpy).toHaveBeenCalledWith(expect.objectContaining({ endpoint: "/api/tcpinpoint", projectName: "test" }));
+    expect(mockInstances).toHaveLength(1);
+    expect(mockInstances[0]?.__destroyed).toBe(false);
+
+    unmount();
+    expect(mockInstances[0]?.__destroyed).toBe(true);
+  });
+
+  it("returns the live instance so consumers can drive it programmatically", () => {
+    const captured: Array<TcPinpointInstance | null> = [];
+    render(<Probe config={{ endpoint: "/api/x", projectName: "p" }} onInstance={(i) => captured.push(i)} />);
+    const finalInstance = captured[captured.length - 1];
+    expect(finalInstance).not.toBeNull();
+    expect(finalInstance).toBe(mockInstances[0]);
+  });
+
+  it("does NOT init twice under StrictMode (double-mount)", () => {
+    const config: TcPinpointConfig = { endpoint: "/api/tcpinpoint", projectName: "test" };
+    render(
+      <StrictMode>
+        <Probe config={config} />
+      </StrictMode>,
+    );
+
+    // StrictMode invokes effects twice: setup → cleanup → setup. The widget
+    // is allowed to be created on both runs as long as the first one is
+    // destroyed cleanly — what matters is that no two live widgets are left
+    // on the page when the dust settles.
+    const liveCount = mockInstances.filter((i) => !i.__destroyed).length;
+    expect(liveCount).toBe(1);
+  });
+
+  /** The config the hook actually handed to initTcPinpoint — wrapper callbacks included. */
+  function wiredConfig(): TcPinpointConfig {
+    const call = initSpy.mock.calls[0];
+    expect(call).toBeDefined();
+    return call![0] as TcPinpointConfig;
+  }
+
+  it("forwards feedback:sent to the latest onFeedbackSent callback without re-initing", () => {
+    const v1 = vi.fn();
+    const v2 = vi.fn();
+
+    function Host({ cb }: { cb: (fb: unknown) => void }) {
+      useTcPinpoint({ endpoint: "/api", projectName: "p", onFeedbackSent: cb });
+      return null;
+    }
+
+    const { rerender } = render(<Host cb={v1} />);
+
+    // The widget calls the wired config callback (single delivery path —
+    // no separate instance.on bridge that would double-fire it).
+    act(() => {
+      wiredConfig().onFeedbackSent?.({ id: "fb-1" } as never);
+    });
+    expect(v1).toHaveBeenCalledTimes(1);
+
+    // Swap the callback prop — the wrapper must reach the latest one
+    // *without* re-initing the widget.
+    rerender(<Host cb={v2} />);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      wiredConfig().onFeedbackSent?.({ id: "fb-2" } as never);
+    });
+    expect(v2).toHaveBeenCalledTimes(1);
+    expect(v1).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards onOpen / onClose / onError / annotation callbacks through live wrappers", () => {
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+    const onError = vi.fn();
+    const onAnnotationStart = vi.fn();
+    const onAnnotationEnd = vi.fn();
+    render(
+      <Probe
+        config={{
+          endpoint: "/api/x",
+          projectName: "p",
+          onOpen,
+          onClose,
+          onError,
+          onAnnotationStart,
+          onAnnotationEnd,
+        }}
+      />,
+    );
+    const wired = wiredConfig();
+    const boom = new Error("boom");
+    act(() => {
+      wired.onOpen?.();
+      wired.onClose?.();
+      wired.onError?.(boom);
+      wired.onAnnotationStart?.();
+      wired.onAnnotationEnd?.();
+    });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(boom);
+    expect(onAnnotationStart).toHaveBeenCalledTimes(1);
+    expect(onAnnotationEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps onCommentAdded fresh across rerenders and silent after unmount", () => {
+    const c1 = vi.fn();
+    const c2 = vi.fn();
+
+    function Host({ cb }: { cb: (comment: CommentResponse) => void }) {
+      useTcPinpoint({ endpoint: "/api", projectName: "p", onCommentAdded: cb });
+      return null;
+    }
+
+    const { rerender, unmount } = render(<Host cb={c1} />);
+    rerender(<Host cb={c2} />);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+
+    const reply = { id: "c-1" } as CommentResponse;
+    act(() => {
+      wiredConfig().onCommentAdded?.(reply);
+    });
+    expect(c2).toHaveBeenCalledWith(reply);
+    expect(c1).not.toHaveBeenCalled();
+
+    unmount();
+    wiredConfig().onCommentAdded?.(reply);
+    expect(c2).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps onError fresh across rerenders (was frozen at mount before)", () => {
+    const e1 = vi.fn();
+    const e2 = vi.fn();
+
+    function Host({ cb }: { cb: (error: Error) => void }) {
+      useTcPinpoint({ endpoint: "/api", projectName: "p", onError: cb });
+      return null;
+    }
+
+    const { rerender } = render(<Host cb={e1} />);
+    rerender(<Host cb={e2} />);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      wiredConfig().onError?.(new Error("late"));
+    });
+    expect(e1).not.toHaveBeenCalled();
+    expect(e2).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps panel action callbacks fresh across rerenders, resolved by id", () => {
+    const fb = { id: "fb-1" } as FeedbackResponse;
+    const ctx = { refresh: vi.fn(), close: vi.fn() };
+    const handlers = () => ({
+      onAction: vi.fn(),
+      visible: vi.fn(() => true),
+      href: vi.fn((f: TcPinpointPanelActionFeedback) => `https://t.example/${f.id}`),
+    });
+    const first = handlers();
+    const second = { ...handlers(), visible: vi.fn(() => false) };
+    const config = (h: ReturnType<typeof handlers>, withActions = true): TcPinpointConfig => ({
+      endpoint: "/api",
+      projectName: "p",
+      panelActions: withActions
+        ? [
+            { id: "run", label: "Run", onAction: h.onAction, visible: h.visible },
+            { id: "open", label: "Open", href: h.href },
+            { id: "static", label: "Static", href: "https://static.example" },
+          ]
+        : [],
+    });
+
+    const { rerender } = render(<Probe config={config(first)} />);
+    rerender(<Probe config={config(second)} />);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+
+    const [run, open, fixed] = wiredConfig().panelActions as [
+      TcPinpointPanelButtonAction,
+      TcPinpointPanelLinkAction,
+      TcPinpointPanelLinkAction,
+    ];
+    void run.onAction(fb, ctx);
+    expect(second.onAction).toHaveBeenCalledExactlyOnceWith(fb, ctx);
+    expect(first.onAction).not.toHaveBeenCalled();
+    expect(run.visible?.(fb)).toBe(false);
+    expect(typeof open.href === "function" && open.href(fb)).toBe("https://t.example/fb-1");
+    expect(second.href).toHaveBeenCalledOnce();
+    expect(first.href).not.toHaveBeenCalled();
+    expect(fixed.href).toBe("https://static.example"); // static data stays static
+
+    // An id gone from the latest config falls back to its mount-time action.
+    rerender(<Probe config={config(second, false)} />);
+    void run.onAction(fb, ctx);
+    expect(first.onAction).toHaveBeenCalledOnce();
+  });
+
+  it("hides an action whose visible() returns a falsy non-boolean, like the vanilla widget", () => {
+    const visible = vi.fn<() => unknown>();
+    const panelActions = [
+      { id: "flag", label: "Flag", onAction: () => {}, visible: visible as never },
+      { id: "always", label: "Always", onAction: () => {} },
+    ];
+    render(<Probe config={{ endpoint: "/api", projectName: "p", panelActions }} />);
+
+    const [flag, always] = wiredConfig().panelActions as TcPinpointPanelButtonAction[];
+    const fb = { id: "fb-1" } as FeedbackResponse;
+    for (const [result, shown] of [
+      [undefined, false],
+      [null, false],
+      [0, false],
+      ["yes", true],
+    ] as const) {
+      visible.mockReturnValue(result);
+      expect(flag?.visible?.(fb)).toBe(shown);
+    }
+    expect(always?.visible?.(fb)).toBe(true);
+  });
+
+  it("hands malformed panelActions to the widget untouched instead of crashing the mount", () => {
+    const first = render(<Probe config={{ endpoint: "/api", projectName: "p", panelActions: [null, "x"] as never }} />);
+    expect(wiredConfig().panelActions).toEqual([null, "x"]);
+    first.unmount();
+    initSpy.mockClear();
+    render(<Probe config={{ endpoint: "/api", projectName: "p", panelActions: { id: "x" } as never }} />);
+    expect(wiredConfig().panelActions).toEqual({ id: "x" });
+  });
+
+  it("leaves malformed panel action entries unwrapped, so the widget still warns about them", () => {
+    const malformed = [
+      { id: "neither", label: "Neither" },
+      { id: "bad", label: "Bad", onAction: "nope" },
+      { id: "both", label: "Both", onAction: () => {}, href: "https://t.example" },
+      { id: "num", label: "Num", href: 42 },
+    ];
+    render(<Probe config={{ endpoint: "/api", projectName: "p", panelActions: malformed as never }} />);
+
+    const wired = wiredConfig().panelActions ?? [];
+    expect(wired).toHaveLength(malformed.length);
+    for (const [i, action] of wired.entries()) expect(action).toBe(malformed[i]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(normalizePanelActions(wired)).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(malformed.length);
+    warn.mockRestore();
+  });
+
+  it("ignores widget callbacks after unmount", () => {
+    const onOpen = vi.fn();
+    const { unmount } = render(<Probe config={{ endpoint: "/api/x", projectName: "p", onOpen }} />);
+    const wired = wiredConfig();
+    unmount();
+    // Even if a stray event fires after unmount, the user callback never runs.
+    act(() => {
+      wired.onOpen?.();
+    });
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+});

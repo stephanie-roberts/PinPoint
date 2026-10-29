@@ -1,0 +1,105 @@
+import {
+  type CommentCreateInput,
+  type CommentRecord,
+  createCollectionStore,
+  type FeedbackCreateInput,
+  type FeedbackCreateOutcome,
+  type FeedbackPage,
+  type FeedbackQuery,
+  type FeedbackRecord,
+  type FeedbackUpdateInput,
+  type TcPinpointStore,
+} from "@tc-pinpoint/core";
+
+export type { TcPinpointStore } from "@tc-pinpoint/core";
+export {
+  isStorePersistence,
+  StoreDuplicateError,
+  StoreLimitError,
+  StoreNotFoundError,
+  StorePersistenceError,
+} from "@tc-pinpoint/core";
+
+/**
+ * In-memory `TcPinpointStore` implementation.
+ *
+ * Zero dependencies, works in any JS environment (Node, Bun, Deno, browser,
+ * Cloudflare Workers). Data lives in a plain array — lost on process restart.
+ *
+ * Use cases:
+ * - **Testing** — fast, isolated store for unit/integration tests
+ * - **Demos** — lightweight store that needs no database or localStorage
+ * - **Reference** — simplest possible adapter for contributors to study
+ *
+ * All store semantics (clientId dedup, filtering, pagination, discussion
+ * threads, error contract) come from core's `createCollectionStore` engine — this class
+ * only supplies the storage primitives: an array, an id generator.
+ *
+ * @example
+ * ```ts
+ * import { MemoryStore } from '@tc-pinpoint/adapter-memory'
+ *
+ * const store = new MemoryStore()
+ * // Pass to createTcPinpointHandler({ store }) or initTcPinpoint({ store })
+ * ```
+ */
+export class MemoryStore implements TcPinpointStore {
+  private feedbacks: FeedbackRecord[] = [];
+  private idCounter = 1;
+
+  private readonly engine = createCollectionStore({
+    load: () => this.feedbacks,
+    persist: (next) => {
+      this.feedbacks = next;
+    },
+    generateId: () => `mem-${this.idCounter++}-${Date.now().toString(36)}`,
+    // Records live in memory: comment dates stay Dates.
+    comments: true,
+  });
+
+  createFeedback(data: FeedbackCreateInput): Promise<FeedbackRecord> {
+    return this.engine.createFeedback(data);
+  }
+
+  createFeedbackIfAbsent(data: FeedbackCreateInput): Promise<FeedbackCreateOutcome> {
+    return this.engine.createFeedbackIfAbsent(data);
+  }
+
+  getFeedbacks(query: FeedbackQuery): Promise<FeedbackPage> {
+    return this.engine.getFeedbacks(query);
+  }
+
+  findByClientId(clientId: string): Promise<FeedbackRecord | null> {
+    return this.engine.findByClientId(clientId);
+  }
+
+  updateFeedback(id: string, data: FeedbackUpdateInput): Promise<FeedbackRecord> {
+    return this.engine.updateFeedback(id, data);
+  }
+
+  deleteFeedback(id: string): Promise<void> {
+    return this.engine.deleteFeedback(id);
+  }
+
+  deleteAllFeedbacks(projectName: string): Promise<void> {
+    return this.engine.deleteAllFeedbacks(projectName);
+  }
+
+  verifyProjectOwnership(id: string, projectName: string): Promise<boolean> {
+    return this.engine.verifyProjectOwnership(id, projectName);
+  }
+
+  addComment(feedbackId: string, data: CommentCreateInput): Promise<CommentRecord> {
+    return this.engine.addComment(feedbackId, data);
+  }
+
+  deleteComment(feedbackId: string, commentId: string): Promise<void> {
+    return this.engine.deleteComment(feedbackId, commentId);
+  }
+
+  /** Remove all data from this store instance. */
+  clear(): void {
+    this.feedbacks = [];
+    this.idCounter = 1;
+  }
+}
