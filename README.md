@@ -27,12 +27,12 @@ Open [http://localhost:3000](http://localhost:3000) once the server is running. 
 
 ### Signing in
 
-Enter your name and Thought Collective email, then click **Email me a code**.
+Enter your name and email, then click **Email me a code**.
 
 If Postmark hasn't been set up yet, the code appears in Terminal instead:
 
 ```text
-[pinpoint] Sign-in code for you@thoughtcollective.com: 482913
+[pinpoint] Sign-in code for you@example.com: 482913
 ```
 
 Codes expire after 10 minutes. Once signed in, your session lasts 30 days unless you sign out.
@@ -136,7 +136,7 @@ Add these values to `apps/pinpoint/.env`:
 
 ```dotenv
 POSTMARK_SERVER_TOKEN=your-server-api-token
-TC_PINPOINT_EMAIL_FROM=pinpoint@thoughtcollective.com
+TC_PINPOINT_EMAIL_FROM=pinpoint@example.com
 ```
 
 Restart the server after changing `.env`. Sign-in codes and notifications will then be sent by email.
@@ -162,8 +162,8 @@ Settings are in `apps/pinpoint/.env`. See `.env.example` for the full list and n
 | Setting | Purpose | Default |
 |---|---|---|
 | `POSTMARK_SERVER_TOKEN` | Sends sign-in codes and notification emails. Required when live. | Empty |
-| `TC_PINPOINT_EMAIL_FROM` | Sender address verified in Postmark. | `pinpoint@thoughtcollective.com` |
-| `TC_PINPOINT_TEAM_DOMAINS` | Email domains treated as team members, separated by commas. | `thoughtcollective.com` |
+| `TC_PINPOINT_EMAIL_FROM` | Sender address verified in Postmark. | `pinpoint@example.com` |
+| `TC_PINPOINT_TEAM_DOMAINS` | Email domains treated as team members, separated by commas. | `example.com` |
 | `TC_PINPOINT_TRUST_PROXY` | Trusts the hosting proxy for visitor IPs and HTTPS information. | `false` |
 | `TC_PINPOINT_DATA` | Feedback file location. Related data is saved in the same folder. | `data/snags.json` |
 | `PORT` | Server port. | `3000` |
