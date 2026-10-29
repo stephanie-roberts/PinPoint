@@ -188,11 +188,9 @@ button {
 }
 
 [x-cloak] {
-  /* biome-ignore lint/complexity/noImportantStyles: Alpine must hide x-cloak elements whatever else styles them */
   display: none !important;
 }
 
-/* biome-ignore-start lint/complexity/noImportantStyles: reduced motion has to win over every transition */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -201,4 +199,3 @@ button {
     animation-duration: 0.01ms !important;
   }
 }
-/* biome-ignore-end lint/complexity/noImportantStyles: reduced motion */
