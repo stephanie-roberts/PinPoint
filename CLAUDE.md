@@ -33,7 +33,7 @@ A self-hosted snagging tool: clients pin feedback to their website, the team wor
 - Uninvited emails get the same "code is on its way" answer but never a code (no enumeration)
 
 ## Code style
-- Biome: 2 spaces, double quotes, semicolons, trailing commas, line width 120; `npm run lint:fix` formats
+- Biome lints only (`biome lint`); its formatter is turned off, so formatting isn't enforced. House style is still 2 spaces, double quotes, semicolons, trailing commas
 - Packages: TypeScript strict with exactOptionalPropertyTypes; the app is plain ES modules
 - Feedback statuses: `open` / `in_progress` / `resolved` / `wont_fix`
 - Keep the app accessible: real buttons, labels, visible focus, live regions for status messages

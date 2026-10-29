@@ -182,7 +182,7 @@ To stop someone getting emails for a site, remove them from its **Notify** list.
    TC_PINPOINT_EMAIL_FROM=pinpoint@thoughtcollective.com
    ```
 
-4. Stop the server (Ctrl + C) and run `npm run dev` again. Codes and notifications now arrive by email. Codes have a subject like **"482913 is your PinPoint code"**.
+4. Stop the server (Ctrl + C) and run `npm run dev` again. Codes and notifications now arrive by email. Codes have a subject like **"482913 is your PinPoint sign-in code"**.
 
 If Postmark refuses a code, the person is asked to try again in a minute. If it refuses a notification, the snag or reply is still saved. Either way, the reason is shown in Terminal. That's usually a From address that isn't verified.
 
@@ -248,7 +248,7 @@ Run these from the main `tcpinpoint` folder.
 | `npm run build` | Builds everything. Needed before `npm start`, and after updates. |
 | `npm start` | Runs the built version, as it would run online. |
 | `npm run verify` | Builds, type-checks, lints and runs all the tests. |
-| `npm run lint:fix` | Tidies formatting automatically. |
+| `npm run lint:fix` | Fixes the code problems Biome can fix by itself. Formatting isn't checked, so lay code out however you like. |
 | `npm run test:e2e` | Runs the widget's browser tests. Run `npx playwright install` once first. |
 
 ## Troubleshooting

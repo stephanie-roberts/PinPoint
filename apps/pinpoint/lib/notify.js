@@ -1,37 +1,29 @@
+import { escapeHtml } from "./email.js";
+
 // Email notifications, sent right away:
 //
-//   New snag from a client         → the site's "Notify" list (your team)
-//   A client replies               → the site's "Notify" list
-//   Your team replies              → the client who left the snag
-//   Snag resolved or won't fix     → the client who left the snag
-//   Snag assigned to someone       → the person it's assigned to
+//   New feedback from a client     → the site's Notify list (your team)
+//   A client replies               → the site's Notify list
+//   Your team replies              → the client who left the feedback
+//   Resolved or won't fix          → the client who left the feedback
+//   Assigned to someone            → the person it's assigned to
 //
 // Nobody is emailed about something they did themselves. Sending never slows down or
 // fails the request: problems are written to the Terminal.
 
-import { escapeHtml } from "./email.js";
+const TYPES = {
+  bug: "Bug",
+  change: "Change",
+  question: "Question",
+  other: "Other",
+};
 
-const TYPES = { bug: "Bug", change: "Change", question: "Question", other: "Other" };
+const CLOSED_STATUSES = new Set(["resolved", "wont_fix"]);
 
 function snippet(text, length = 60) {
   const flat = String(text).replace(/\s+/g, " ").trim();
+
   return flat.length > length ? `${flat.slice(0, length - 1)}…` : flat;
-}
-
-// The page the snag was left on, opened on that snag (the widget reads ?tcpinpoint=<id>).
-function pageLink(site, feedback) {
-  try {
-    const url = new URL(feedback.url, site?.addresses[0] ?? undefined);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    url.searchParams.set("tcpinpoint", feedback.id);
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-function inboxLink(server, feedback) {
-  return `${server}/?project=${encodeURIComponent(feedback.projectName)}&feedback=${encodeURIComponent(feedback.id)}`;
 }
 
 function quote(text) {
@@ -41,81 +33,130 @@ function quote(text) {
     .join("\n");
 }
 
+function plainText(lines) {
+  return lines.filter((line) => line !== null).join("\n");
+}
+
+// Link to the original page with its feedback selected.
+function pageLink(site, feedback) {
+  try {
+    const url = new URL(feedback.url, site?.addresses?.[0]);
+
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+
+    url.searchParams.set("tcpinpoint", feedback.id);
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function inboxLink(server, feedback) {
+  const project = encodeURIComponent(feedback.projectName);
+  const id = encodeURIComponent(feedback.id);
+
+  return `${server}/?project=${project}&feedback=${id}`;
+}
+
+function teamFooter(siteName) {
+  return `You're receiving this because you're on the notification list for ${siteName}.`;
+}
+
+function clientFooter(siteName) {
+  return `You're receiving this because you left feedback on ${siteName}.`;
+}
+
 function htmlEmail({ intro, quoteText, details = [], button, footer }) {
   return [
     '<div style="font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#0a0a0a;max-width:560px">',
     `<p>${escapeHtml(intro)}</p>`,
     `<blockquote style="margin:20px 0;padding:12px 16px;border-left:3px solid #fed631;background:#f6f6f4;white-space:pre-wrap">${escapeHtml(quoteText)}</blockquote>`,
+
     details.length
-      ? `<p style="color:#6e6e6e;font-size:13px">${details.map((d) => escapeHtml(d)).join("<br>")}</p>`
+      ? `<p style="color:#6e6e6e;font-size:13px">${details.map((detail) => escapeHtml(detail)).join("<br>")}</p>`
       : "",
+
     button
       ? `<p style="margin:28px 0"><a href="${escapeHtml(button.href)}" style="background:#0a0a0a;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:600">${escapeHtml(button.label)}</a></p>`
       : "",
+
     footer ? `<p style="color:#6e6e6e;font-size:12px">${escapeHtml(footer)}</p>` : "",
+
     "</div>",
   ].join("");
 }
 
 export function createNotifier({ mailer, sites, isTeam, log = console }) {
   function deliver(to, message) {
-    mailer.send({ to, ...message }).catch((error) => {
-      log.error(`[pinpoint] Couldn't send a notification to ${to}: ${error.message}`);
-    });
+    void Promise.resolve()
+      .then(() => mailer.send({ to, ...message }))
+      .catch((error) => {
+        log.error(`[pinpoint] Couldn't send a notification to ${to}: ${error?.message ?? String(error)}`);
+      });
   }
 
-  // Your team members listed on the site, minus whoever did the thing.
   function teamRecipients(siteName, actorEmail) {
     const site = sites.get(siteName);
+
     return (site?.notify ?? []).filter((email) => email !== actorEmail);
   }
 
-  // The client who left the snag, unless it was your team or they did the thing themselves.
   function clientRecipient(feedback, actorEmail) {
     const email = feedback.authorEmail?.toLowerCase();
+
     if (!email || email === actorEmail || isTeam(email)) return null;
+
     return email;
+  }
+
+  function notifyTeam(siteName, actorEmail, message) {
+    for (const to of teamRecipients(siteName, actorEmail)) {
+      deliver(to, message);
+    }
   }
 
   return {
     snagCreated(feedback, actor, server) {
       const site = sites.get(feedback.projectName);
-      const type = TYPES[feedback.type] ?? "Snag";
+      const type = (TYPES[feedback.type] ?? "Feedback").toLowerCase();
       const page = pageLink(site, feedback);
-      for (const to of teamRecipients(feedback.projectName, actor?.email)) {
-        deliver(to, {
-          subject: `New ${type.toLowerCase()} on ${feedback.projectName}: ${snippet(feedback.message)}`,
-          text: [
-            `${feedback.authorName} left a new ${type.toLowerCase()} on ${feedback.projectName}:`,
-            "",
-            quote(feedback.message),
-            "",
-            page ? `Page: ${page}` : null,
-            `Open it in the inbox: ${inboxLink(server, feedback)}`,
-          ]
-            .filter((line) => line !== null)
-            .join("\n"),
-          html: htmlEmail({
-            intro: `${feedback.authorName} left a new ${type.toLowerCase()} on ${feedback.projectName}:`,
-            quoteText: feedback.message,
-            details: page ? [`Page: ${page}`] : [],
-            button: { href: inboxLink(server, feedback), label: "Open in the inbox" },
-            footer: `You're getting this because you're on the notify list for ${feedback.projectName}.`,
-          }),
-        });
-      }
+      const inbox = inboxLink(server, feedback);
+      const intro = `${feedback.authorName} left a new ${type} on ${feedback.projectName}:`;
+
+      notifyTeam(feedback.projectName, actor?.email, {
+        subject: `New ${type} on ${feedback.projectName}: ` + snippet(feedback.message),
+
+        text: plainText([
+          intro,
+          "",
+          quote(feedback.message),
+          "",
+          page ? `Page: ${page}` : null,
+          `Open in the inbox: ${inbox}`,
+        ]),
+
+        html: htmlEmail({
+          intro,
+          quoteText: feedback.message,
+          details: page ? [`Page: ${page}`] : [],
+          button: { href: inbox, label: "View feedback" },
+          footer: teamFooter(feedback.projectName),
+        }),
+      });
     },
 
     commentAdded(feedback, comment, actor, server) {
-      const site = sites.get(feedback.projectName);
-
       if (comment.authorRole === "team") {
         const to = clientRecipient(feedback, actor?.email);
-        const page = pageLink(site, feedback);
+        const page = pageLink(sites.get(feedback.projectName), feedback);
+
         if (!to || !page) return;
+
         deliver(to, {
-          subject: `${comment.authorName} replied to your feedback on ${feedback.projectName}`,
-          text: [
+          subject: `${comment.authorName} replied to your feedback ` + `on ${feedback.projectName}`,
+
+          text: plainText([
             `Hi ${feedback.authorName},`,
             "",
             `${comment.authorName} replied to your feedback:`,
@@ -124,98 +165,109 @@ export function createNotifier({ mailer, sites, isTeam, log = console }) {
             "",
             `${comment.authorName}: ${comment.body}`,
             "",
-            `See it on your site, and reply there: ${page}`,
-          ].join("\n"),
+            `View the reply on your website: ${page}`,
+          ]),
+
           html: htmlEmail({
-            intro: `Hi ${feedback.authorName}, ${comment.authorName} replied to your feedback "${snippet(feedback.message, 80)}":`,
+            intro:
+              `Hi ${feedback.authorName}, ${comment.authorName} ` +
+              `replied to your feedback "${snippet(feedback.message, 80)}":`,
             quoteText: comment.body,
-            button: { href: page, label: "See it on your site" },
-            footer: `You're getting this because you left feedback on ${feedback.projectName}.`,
+            button: { href: page, label: "View reply" },
+            footer: clientFooter(feedback.projectName),
           }),
         });
+
         return;
       }
 
-      for (const to of teamRecipients(feedback.projectName, actor?.email)) {
-        deliver(to, {
-          subject: `${comment.authorName} replied on ${feedback.projectName}: ${snippet(feedback.message)}`,
-          text: [
-            `${comment.authorName} replied to "${snippet(feedback.message, 80)}" on ${feedback.projectName}:`,
-            "",
-            quote(comment.body),
-            "",
-            `Open it in the inbox: ${inboxLink(server, feedback)}`,
-          ].join("\n"),
-          html: htmlEmail({
-            intro: `${comment.authorName} replied to "${snippet(feedback.message, 80)}" on ${feedback.projectName}:`,
-            quoteText: comment.body,
-            button: { href: inboxLink(server, feedback), label: "Open in the inbox" },
-            footer: `You're getting this because you're on the notify list for ${feedback.projectName}.`,
-          }),
-        });
-      }
+      const inbox = inboxLink(server, feedback);
+      const intro =
+        `${comment.authorName} replied to ` + `"${snippet(feedback.message, 80)}" on ${feedback.projectName}:`;
+
+      notifyTeam(feedback.projectName, actor?.email, {
+        subject: `${comment.authorName} replied on ${feedback.projectName}: ` + snippet(feedback.message),
+
+        text: plainText([intro, "", quote(comment.body), "", `Open in the inbox: ${inbox}`]),
+
+        html: htmlEmail({
+          intro,
+          quoteText: comment.body,
+          button: { href: inbox, label: "View reply" },
+          footer: teamFooter(feedback.projectName),
+        }),
+      });
     },
 
-    // Someone on your team assigned feedback to someone else (assigning it to yourself sends nothing).
     assigned(feedback, assignee, actor, server) {
       if (!assignee?.email || assignee.email === actor?.email) return;
-      const type = (TYPES[feedback.type] ?? "Feedback").toLowerCase();
+
       const page = pageLink(sites.get(feedback.projectName), feedback);
-      const who = actor?.name ?? "Someone on your team";
+      const inbox = inboxLink(server, feedback);
+      const actorName = actor?.name ?? "Someone on your team";
+      const intro = `${actorName} assigned you feedback on ${feedback.projectName} ` + `from ${feedback.authorName}:`;
+
       deliver(assignee.email, {
-        subject: `${who} assigned you a ${type} on ${feedback.projectName}: ${snippet(feedback.message)}`,
-        text: [
-          `${who} assigned you this ${type} on ${feedback.projectName}, from ${feedback.authorName}:`,
+        subject: `${actorName} assigned you feedback on ${feedback.projectName}: ` + snippet(feedback.message),
+
+        text: plainText([
+          intro,
           "",
           quote(feedback.message),
           "",
           page ? `Page: ${page}` : null,
-          `Open it in the inbox: ${inboxLink(server, feedback)}`,
-        ]
-          .filter((line) => line !== null)
-          .join("\n"),
+          `Open in the inbox: ${inbox}`,
+        ]),
+
         html: htmlEmail({
-          intro: `${who} assigned you this ${type} on ${feedback.projectName}, from ${feedback.authorName}:`,
+          intro,
           quoteText: feedback.message,
           details: page ? [`Page: ${page}`] : [],
-          button: { href: inboxLink(server, feedback), label: "Open in the inbox" },
-          footer: "You're getting this because it was assigned to you in PinPoint.",
+          button: { href: inbox, label: "View feedback" },
+          footer: "You're receiving this because this feedback was assigned to you.",
         }),
       });
     },
 
     statusChanged(feedback, previous, actor) {
-      const closed = feedback.status === "resolved" || feedback.status === "wont_fix";
-      const wasClosed = previous === "resolved" || previous === "wont_fix";
-      if (!closed || wasClosed) return;
+      // Only notify when feedback moves from an open to a closed status.
+      if (!CLOSED_STATUSES.has(feedback.status) || CLOSED_STATUSES.has(previous)) {
+        return;
+      }
 
       const to = clientRecipient(feedback, actor?.email);
       const page = pageLink(sites.get(feedback.projectName), feedback);
+
       if (!to || !page) return;
 
       const resolved = feedback.status === "resolved";
-      const headline = resolved
+
+      const subject = resolved
         ? `Your feedback on ${feedback.projectName} has been resolved`
         : `Your feedback on ${feedback.projectName} won't be changed`;
-      const explain = resolved
-        ? "It's been sorted. Have a look, and reply on the site if anything still isn't right."
-        : "We've decided not to change this one. You can reply on the site if you'd like to talk it through.";
+
+      const explanation = resolved
+        ? "This has been resolved. Please check your website and reply if anything still needs attention."
+        : "We've decided not to make this change. You can reply on your website if you'd like to discuss it.";
+
       deliver(to, {
-        subject: headline,
-        text: [
+        subject,
+
+        text: plainText([
           `Hi ${feedback.authorName},`,
           "",
-          explain,
+          explanation,
           "",
           quote(feedback.message),
           "",
-          `See it on your site: ${page}`,
-        ].join("\n"),
+          `View on your website: ${page}`,
+        ]),
+
         html: htmlEmail({
-          intro: `Hi ${feedback.authorName}, ${explain}`,
+          intro: `Hi ${feedback.authorName}, ${explanation}`,
           quoteText: feedback.message,
-          button: { href: page, label: "See it on your site" },
-          footer: `You're getting this because you left feedback on ${feedback.projectName}.`,
+          button: { href: page, label: "View feedback" },
+          footer: clientFooter(feedback.projectName),
         }),
       });
     },

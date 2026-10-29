@@ -1,5 +1,4 @@
 import Alpine from "alpinejs";
-import "../css/site.css";
 
 import Inbox from "./components/inbox.js";
 

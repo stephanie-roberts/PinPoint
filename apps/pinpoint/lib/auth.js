@@ -1,38 +1,44 @@
-// Sign-in with a 6-digit code sent by email.
-//
-// Team members (an email at one of your team domains) can use the inbox and do everything.
-// Clients can sign in on a site they've been invited to, then add snags and reply there.
-//
-// Codes live in memory for 10 minutes. Sessions last 30 days and are saved to data/sessions.json,
-// storing only a hash of each session token.
-
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { readJson, writeJson } from "./json-file.js";
 import { isEmail, normaliseEmail } from "./sites.js";
 
+// Codes expire after 10 minutes; sessions last 30 days.
+// Only hashes of codes and session tokens are stored.
 const CODE_TTL = 10 * 60 * 1000;
 const CODE_RESEND_GAP = 30 * 1000;
 const MAX_ATTEMPTS = 5;
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
+const LIMIT_WINDOW = 10 * 60 * 1000; // how far back the rate limits look
 const NAME_MAX = 100;
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 
-function sameHash(a, b) {
-  const x = Buffer.from(a, "hex");
-  const y = Buffer.from(b, "hex");
-  return x.length === y.length && timingSafeEqual(x, y);
+function sameHash(first, second) {
+  const firstBuffer = Buffer.from(first, "hex");
+  const secondBuffer = Buffer.from(second, "hex");
+
+  return firstBuffer.length === secondBuffer.length && timingSafeEqual(firstBuffer, secondBuffer);
 }
 
-// A small sliding-window limiter, so nobody can spray codes or guesses.
+function tokenFromHeaders(headers) {
+  const authorization = typeof headers.get === "function" ? headers.get("authorization") : headers.authorization;
+
+  return String(authorization ?? "").replace(/^Bearer\s+/i, "");
+}
+
+// Return true when a key exceeds its sliding-window limit.
 function createLimiter(limit, windowMs) {
   const hits = new Map();
+
   return (key) => {
     const now = Date.now();
-    const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+    const recent = (hits.get(key) ?? []).filter((timestamp) => now - timestamp < windowMs);
+
     recent.push(now);
     hits.set(key, recent);
+
     if (hits.size > 10_000) hits.clear();
+
     return recent.length > limit;
   };
 }
@@ -40,137 +46,194 @@ function createLimiter(limit, windowMs) {
 export class AuthError extends Error {
   constructor(status, message) {
     super(message);
+    this.name = "AuthError";
     this.status = status;
   }
 }
 
 export function createAuth({ sessionsFile, teamDomains, sites, mailer }) {
-  const codes = new Map(); // email → { codeHash, name, expires, attempts, sentAt, siteName }
-  const tooManyCodes = createLimiter(10, 10 * 60 * 1000);
-  const tooManyGuesses = createLimiter(30, 10 * 60 * 1000);
+  const codes = new Map();
+  const tooManyCodes = createLimiter(10, LIMIT_WINDOW);
+  const tooManyGuesses = createLimiter(30, LIMIT_WINDOW);
 
   const sessions = Object.fromEntries(
     Object.entries(readJson(sessionsFile, {})).filter(([, session]) => session.expires > Date.now()),
   );
+
   const saveSessions = () => writeJson(sessionsFile, sessions);
 
   const isTeam = (email) => teamDomains.some((domain) => email.endsWith(`@${domain}`));
+
   const roleFor = (email) => (isTeam(email) ? "team" : "client");
 
-  // May this email sign in here? The inbox is team-only; a site takes its team and invited clients.
-  function allowed(email, siteName) {
-    if (isTeam(email)) return true;
-    return Boolean(siteName) && sites.isClientOf(email, siteName);
+  function canSignIn(email, siteName) {
+    return isTeam(email) || (Boolean(siteName) && sites.isClientOf(email, siteName));
   }
 
   return {
     isTeam,
 
-    async requestCode({ name, email, site: siteName }, ip) {
-      email = normaliseEmail(email);
-      name = String(name ?? "")
+    async requestCode(input, ip) {
+      const email = normaliseEmail(input.email);
+      const name = String(input.name ?? "")
         .trim()
         .slice(0, NAME_MAX);
-      siteName = siteName ? String(siteName) : null;
+      const siteName = input.site ? String(input.site) : null;
 
-      if (!name) throw new AuthError(400, "Please add your name.");
-      if (!isEmail(email)) throw new AuthError(400, "That doesn't look like an email address.");
-      if (siteName && !sites.get(siteName)) throw new AuthError(400, "This site isn't set up for feedback.");
+      if (!name) {
+        throw new AuthError(400, "Please enter your name.");
+      }
+
+      if (!isEmail(email)) {
+        throw new AuthError(400, "Please enter a valid email address.");
+      }
+
+      if (siteName && !sites.get(siteName)) {
+        throw new AuthError(400, "This website isn't set up for feedback.");
+      }
+
       if (!siteName && !isTeam(email)) {
         throw new AuthError(403, "The inbox is for your team. Clients leave feedback on their own website.");
       }
+
       if (tooManyCodes(`ip:${ip}`) || tooManyCodes(`email:${email}`)) {
-        throw new AuthError(429, "Too many codes asked for. Wait a few minutes and try again.");
+        throw new AuthError(429, "Too many code requests. Please wait a few minutes and try again.");
       }
 
-      // Uninvited emails get the same answer as invited ones, so the form can't be used to
-      // find out who has access. They just never receive a code.
-      if (!allowed(email, siteName)) return;
+      // Keep the response identical for invited and uninvited clients.
+      if (!canSignIn(email, siteName)) return;
 
+      const now = Date.now();
       const existing = codes.get(email);
-      if (existing && Date.now() - existing.sentAt < CODE_RESEND_GAP) return;
+
+      if (existing && now - existing.sentAt < CODE_RESEND_GAP) return;
 
       const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+
       codes.set(email, {
         codeHash: hash(code),
         name,
         siteName,
-        expires: Date.now() + CODE_TTL,
+        expires: now + CODE_TTL,
         attempts: 0,
-        sentAt: Date.now(),
+        sentAt: now,
       });
+
       try {
         await mailer.sendCode({ to: email, name, code, siteName });
       } catch (error) {
         codes.delete(email);
+
         console.error("[pinpoint] Couldn't send a sign-in code:", error.message);
-        throw new AuthError(502, "We couldn't send the email just now. Try again in a minute.");
+
+        throw new AuthError(502, "We couldn't send your code. Please try again in a minute.");
       }
     },
 
-    verifyCode({ email, code }, ip) {
-      email = normaliseEmail(email);
-      code = String(code ?? "").replace(/\D/g, "");
-      if (tooManyGuesses(`ip:${ip}`)) throw new AuthError(429, "Too many tries. Wait a few minutes and try again.");
+    verifyCode(input, ip) {
+      const email = normaliseEmail(input.email);
+      const code = String(input.code ?? "").replace(/\D/g, "");
+
+      if (tooManyGuesses(`ip:${ip}`)) {
+        throw new AuthError(429, "Too many attempts. Please wait a few minutes and try again.");
+      }
 
       const entry = codes.get(email);
+
       if (!entry || entry.expires < Date.now()) {
         codes.delete(email);
-        throw new AuthError(400, "That code has expired. Ask for a new one.");
+
+        throw new AuthError(400, "Your code has expired. Please request a new one.");
       }
+
       entry.attempts += 1;
+
       if (entry.attempts > MAX_ATTEMPTS) {
         codes.delete(email);
-        throw new AuthError(400, "Too many wrong codes. Ask for a new one.");
+
+        throw new AuthError(400, "Too many incorrect attempts. Please request a new code.");
       }
+
       if (code.length !== 6 || !sameHash(hash(code), entry.codeHash)) {
-        throw new AuthError(400, "That code isn't right. Check the email and try again.");
+        throw new AuthError(400, "That code isn't correct. Please check your email and try again.");
       }
 
       codes.delete(email);
+
+      const now = Date.now();
       const token = randomBytes(32).toString("base64url");
-      const user = { name: entry.name, email, role: roleFor(email) };
-      sessions[hash(token)] = { ...user, created: Date.now(), expires: Date.now() + SESSION_TTL };
+      const user = {
+        name: entry.name,
+        email,
+        role: roleFor(email),
+      };
+
+      sessions[hash(token)] = {
+        ...user,
+        created: now,
+        expires: now + SESSION_TTL,
+      };
+
       saveSessions();
+
       return { token, user };
     },
 
-    // The signed-in person for a request (Authorization: Bearer <token>), or null.
     userFromRequest(headers) {
-      const header = typeof headers.get === "function" ? headers.get("authorization") : headers.authorization;
-      const token = String(header ?? "").replace(/^Bearer\s+/i, "");
+      const token = tokenFromHeaders(headers);
+
       if (!token) return null;
-      const session = sessions[hash(token)];
+
+      const sessionHash = hash(token);
+      const session = sessions[sessionHash];
+
       if (!session) return null;
+
       if (session.expires < Date.now()) {
-        delete sessions[hash(token)];
+        delete sessions[sessionHash];
         saveSessions();
+
         return null;
       }
-      // Roles follow the current rules, so a changed team domain applies straight away.
-      return { name: session.name, email: session.email, role: roleFor(session.email) };
+
+      // Apply current team-domain rules to existing sessions.
+      return {
+        name: session.name,
+        email: session.email,
+        role: roleFor(session.email),
+      };
     },
 
     signOut(headers) {
-      const token = String(headers.authorization ?? "").replace(/^Bearer\s+/i, "");
-      if (token && sessions[hash(token)]) {
-        delete sessions[hash(token)];
-        saveSessions();
-      }
+      const token = tokenFromHeaders(headers);
+
+      if (!token) return;
+
+      const sessionHash = hash(token);
+
+      if (!sessions[sessionHash]) return;
+
+      delete sessions[sessionHash];
+      saveSessions();
     },
 
-    // The name someone gave when they last signed in, or null if they never have.
     nameFor(email) {
-      let latest = null;
+      let latestSession = null;
+
       for (const session of Object.values(sessions)) {
-        if (session.email === email && (!latest || session.created > latest.created)) latest = session;
+        if (session.email !== email) continue;
+
+        if (!latestSession || session.created > latestSession.created) {
+          latestSession = session;
+        }
       }
-      return latest?.name ?? null;
+
+      return latestSession?.name ?? null;
     },
 
-    // May this person snag and reply on this site?
     canUseSite(user, siteName) {
       if (!user) return false;
+
       return user.role === "team" || sites.isClientOf(user.email, siteName);
     },
   };

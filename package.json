@@ -20,8 +20,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "playwright test",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
     "verify": "npm run build && npm run check && npm run lint && npm run test:run"
   },
   "devDependencies": {
