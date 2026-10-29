@@ -1,6 +1,6 @@
 # PinPoint
 
-PinPoint is a website feedback tool I built to keep client comments in one place.
+PinPoint is a website feedback tool.
 
 Clients can draw a box around something on their website, choose a feedback type and leave a comment. The team can then view it in the inbox, reply and update its status.
 
