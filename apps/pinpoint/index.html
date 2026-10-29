@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en-GB">
 <head>
     <meta charset="utf-8">
@@ -7,6 +7,7 @@
     <title>Feedback — PinPoint</title>
     <script type="module" src="/src/js/site.js"></script>
 </head>
+
 <body x-data="inbox" @keydown.window="onKeydown($event)" class="min-h-screen">
 
     <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-[10px] focus:top-[10px] focus:z-[60] focus:bg-yellow focus:px-[14px] focus:py-[10px] focus:text-sm focus:font-bold">Skip to the snags</a>
@@ -60,6 +61,7 @@
         </form>
 
         <form x-show="signInStep === 'code'" @submit.prevent="verifyCode()" class="mt-[20px]">
+
             <p class="text-sm/[1.4] text-grey md:text-lg/[1.3]" id="code-help">We've emailed a code to <strong class="text-black" x-text="emailDraft"></strong>. It works for 10 minutes.</p>
 
             <div class="mt-[40px] md:mt-[50px]">
@@ -110,28 +112,28 @@
             </fieldset>
 
             <search>
-            <form class="flex items-center justify-between gap-[20px] border-b border-line px-[10px] py-[14px] md:px-[35px] lg:px-0" @submit.prevent="refresh()">
+                <form class="flex items-center justify-between gap-[20px] border-b border-line px-[10px] py-[14px] md:px-[35px] lg:px-0" @submit.prevent="refresh()">
 
-                <label class="relative flex min-w-0 flex-1 items-center">
-                    <span class="sr-only">Search Feedback</span>
-                    <svg class="pointer-events-none absolute left-0 w-[15px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 17 17" fill="none" aria-hidden="true"><ellipse cx="6.36" cy="6.36" rx="6.36" ry="6.36" transform="matrix(-1 0 0 1 13.72 1)" stroke="currentColor" stroke-width="2"/><path d="M12.07 12.07l3.53 3.53" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    <input id="search" x-ref="search" type="search" x-model="search" @input.debounce.300ms="refresh()" placeholder="Search messages and pages" class="w-full bg-transparent py-[6px] pl-[26px] text-sm outline-none placeholder:text-grey md:text-base">
-                </label>
+                    <label class="relative flex min-w-0 flex-1 items-center">
+                        <span class="sr-only">Search Feedback</span>
+                        <svg class="pointer-events-none absolute left-0 w-[15px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 17 17" fill="none" aria-hidden="true"><ellipse cx="6.36" cy="6.36" rx="6.36" ry="6.36" transform="matrix(-1 0 0 1 13.72 1)" stroke="currentColor" stroke-width="2"/><path d="M12.07 12.07l3.53 3.53" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        <input id="search" x-ref="search" type="search" x-model="search" @input.debounce.300ms="refresh()" placeholder="Search messages and pages" class="w-full bg-transparent py-[6px] pl-[26px] text-sm outline-none placeholder:text-grey md:text-base">
+                    </label>
 
-                <label class="flex shrink-0 items-center text-xs md:text-sm">
-                    <span class="mr-[4px]">Show:</span>
-                    <span class="select">
-                        <select x-model="type">
-                            <option value="">All types</option>
-                            <template x-for="(label, value) in TYPES" :key="value">
-                                <option :value="value" x-text="label"></option>
-                            </template>
-                        </select>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2"/></svg>
-                    </span>
-                </label>
+                    <label class="flex shrink-0 items-center text-xs md:text-sm">
+                        <span class="mr-[4px]">Show:</span>
+                        <span class="select">
+                            <select x-model="type">
+                                <option value="">All types</option>
+                                <template x-for="(label, value) in TYPES" :key="value">
+                                    <option :value="value" x-text="label"></option>
+                                </template>
+                            </select>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2"/></svg>
+                        </span>
+                    </label>
 
-            </form>
+                </form>
             </search>
 
             <div x-show="loading && !items.length" aria-hidden="true">
