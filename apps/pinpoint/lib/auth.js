@@ -159,6 +159,15 @@ export function createAuth({ sessionsFile, teamDomains, sites, mailer }) {
       }
     },
 
+    // The name someone gave when they last signed in, or null if they never have.
+    nameFor(email) {
+      let latest = null;
+      for (const session of Object.values(sessions)) {
+        if (session.email === email && (!latest || session.created > latest.created)) latest = session;
+      }
+      return latest?.name ?? null;
+    },
+
     // May this person snag and reply on this site?
     canUseSite(user, siteName) {
       if (!user) return false;

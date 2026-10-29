@@ -35,6 +35,64 @@
 }
 
 @layer utilities {
+  /* page layout and type */
+  .gutter {
+    @apply px-[10px] md:px-[35px] lg:px-0;
+  }
+
+  .page-title {
+    @apply text-[2.5rem] font-bold leading-none tracking-[-0.02em] md:text-[3.5rem];
+  }
+
+  .page-title-lg {
+    @apply md:text-[4.375rem];
+  }
+
+  .title {
+    @apply text-lg font-bold md:text-2xl;
+  }
+
+  .intro {
+    @apply text-sm/[1.4] text-grey md:text-lg/[1.3];
+  }
+
+  .hint {
+    @apply mt-[8px] text-xs text-grey;
+  }
+
+  /* header nav */
+  .nav-link {
+    @apply pb-[2px] transition duration-300 hover:text-yellow aria-[current=page]:border-b-2 aria-[current=page]:border-yellow aria-[current=page]:font-bold;
+  }
+
+  /* small text buttons (add a colour), and the round previous / next buttons */
+  .text-link {
+    @apply text-sm underline-offset-2 transition duration-300 hover:underline;
+  }
+
+  .icon-btn {
+    @apply grid size-[36px] place-items-center rounded-full transition duration-300 hover:bg-mist disabled:opacity-30;
+  }
+
+  /* type and status dots */
+  .dot {
+    @apply size-[8px] rounded-full;
+  }
+
+  /* email lists on the site cards */
+  .email-list {
+    @apply space-y-[2px] text-sm;
+  }
+
+  .email-list li {
+    @apply break-all;
+  }
+
+  /* keyboard hints */
+  .keys kbd {
+    @apply font-body font-bold;
+  }
+
   /* status tabs */
   .tabs button {
     @apply relative h-full px-[2px] pb-[14px] pt-[16px] text-sm text-grey transition duration-300 hover:text-black md:text-base;

@@ -15,10 +15,11 @@ A self-hosted snagging tool: clients pin feedback to their website, the team wor
 
 ## Layout
 - `apps/pinpoint`: the app
-  - `server.js`: Node http server. Routes `/api/tcpinpoint` (the `@tc-pinpoint/server` handler with a custom `access` policy), `/api/auth/*` (email-code sign-in), `/api/sites` (team only), `/pinpoint.js` (client-site loader), `/widget.js` (`packages/widget/dist/index.global.js`), and the inbox (Vite in `--dev`, `dist/` otherwise)
+  - `server.js`: Node http server. Routes `/api/tcpinpoint` (the `@tc-pinpoint/server` handler with a custom `access` policy), `/api/auth/*` (email-code sign-in), `/api/sites` (team only), `/api/assignments` (team only), `/pinpoint.js` (client-site loader), `/widget.js` (`packages/widget/dist/index.global.js`), and the inbox (Vite in `--dev`, `dist/` otherwise)
   - `lib/auth.js`: 6-digit codes (memory, 10 min, 5 tries), sessions (data/sessions.json, sha256 of token, 30 days), rate limits, roles. Team = email at `TC_PINPOINT_TEAM_DOMAINS`; clients = emails listed on a site
   - `lib/sites.js`: data/sites.json: `{ name, addresses (origins), clients (emails), notify (team emails) }`; addresses feed CORS `allowedOrigins` (handler rebuilt on change)
   - `lib/notify.js`: emails sent right away: new snag / client reply → site's notify list; team reply / resolved or won't fix → the client author. Never the actor; team-only threads don't email clients. Hooked via `hooks.onCreated` plus a wrapper around the store's `addComment` / `updateFeedback` (new replies detected by clientId; who acted comes from an AsyncLocalStorage set per request in server.js)
+  - `lib/assignments.js`: data/assignments.json: `{ feedbackId: { projectName, email, assignedBy, assignedAt } }`. Only emails on the site's Notify list can be assigned; assigning someone else emails them (`notifier.assigned`). Removed when the feedback is deleted (store wrapper's `deleteFeedback` / `deleteAllFeedbacks`). Names come from `auth.nameFor` (latest session)
   - `lib/email.js`: Postmark (`send`, `sendCode`); without `POSTMARK_SERVER_TOKEN` emails print to the terminal (dev only, or `TC_PINPOINT_PRINT_CODES=true`)
   - `loader/pinpoint.js`: vanilla script for client sites (`data-site`). Hidden unless `?feedback` (remembered) or a session; closed shadow DOM sign-in card; then loads the widget with `headers: { Authorization }` and `identity`
   - Inbox: `index.html` + `src/` (Tailwind 4 `@theme` + `@layer utilities`, Alpine `Alpine.data("inbox")` in `src/js/components/inbox.js`)

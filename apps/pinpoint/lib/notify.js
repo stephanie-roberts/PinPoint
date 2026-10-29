@@ -4,6 +4,7 @@
 //   A client replies               → the site's "Notify" list
 //   Your team replies              → the client who left the snag
 //   Snag resolved or won't fix     → the client who left the snag
+//   Snag assigned to someone       → the person it's assigned to
 //
 // Nobody is emailed about something they did themselves. Sending never slows down or
 // fails the request: problems are written to the Terminal.
@@ -153,6 +154,34 @@ export function createNotifier({ mailer, sites, isTeam, log = console }) {
           }),
         });
       }
+    },
+
+    // Someone on your team assigned feedback to someone else (assigning it to yourself sends nothing).
+    assigned(feedback, assignee, actor, server) {
+      if (!assignee?.email || assignee.email === actor?.email) return;
+      const type = (TYPES[feedback.type] ?? "Feedback").toLowerCase();
+      const page = pageLink(sites.get(feedback.projectName), feedback);
+      const who = actor?.name ?? "Someone on your team";
+      deliver(assignee.email, {
+        subject: `${who} assigned you a ${type} on ${feedback.projectName}: ${snippet(feedback.message)}`,
+        text: [
+          `${who} assigned you this ${type} on ${feedback.projectName}, from ${feedback.authorName}:`,
+          "",
+          quote(feedback.message),
+          "",
+          page ? `Page: ${page}` : null,
+          `Open it in the inbox: ${inboxLink(server, feedback)}`,
+        ]
+          .filter((line) => line !== null)
+          .join("\n"),
+        html: htmlEmail({
+          intro: `${who} assigned you this ${type} on ${feedback.projectName}, from ${feedback.authorName}:`,
+          quoteText: feedback.message,
+          details: page ? [`Page: ${page}`] : [],
+          button: { href: inboxLink(server, feedback), label: "Open in the inbox" },
+          footer: "You're getting this because it was assigned to you in PinPoint.",
+        }),
+      });
     },
 
     statusChanged(feedback, previous, actor) {

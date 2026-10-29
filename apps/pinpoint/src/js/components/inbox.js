@@ -15,6 +15,14 @@ export const STATUSES = {
   wont_fix: "Won't fix",
 };
 
+// Dot colours for each status (the colours are in site.css).
+export const STATUS_DOTS = {
+  open: "bg-open",
+  in_progress: "bg-progress",
+  resolved: "bg-resolved",
+  wont_fix: "bg-wontfix",
+};
+
 const TABS = [
   { id: "active", label: "To do", statuses: "open,in_progress" },
   { id: "done", label: "Done", statuses: "resolved,wont_fix" },
@@ -53,6 +61,7 @@ function focusWhenVisible(el, tries = 20) {
 const Inbox = () => ({
   TYPES,
   STATUSES,
+  STATUS_DOTS,
   TABS,
 
   // Your client sites come from the server (/api/sites) once you sign in.
@@ -89,6 +98,11 @@ const Inbox = () => ({
   loading: false,
   loadingMore: false,
   capabilities: { comments: false, deleteComments: false },
+
+  // Who each piece of feedback on this site is assigned to ({ feedbackId: email }), and names to show.
+  assignments: {},
+  names: {},
+  assigning: false,
 
   selectedId: null,
   reply: "",
@@ -304,7 +318,7 @@ const Inbox = () => ({
       this.setSites(data.sites);
       this.removingSite = null;
       if (this.project === name) this.project = this.projects[0]?.name ?? "";
-      this.notify(`${name} removed. Its snags are kept, and come back if you add it again.`);
+      this.notify(`${name} removed. Its feedback is kept, and comes back if you add it again.`);
     } catch (error) {
       this.handleError(error);
     }
@@ -365,8 +379,9 @@ const Inbox = () => ({
       this.total = data.total;
       this.page = 1;
       this.capabilities = data.capabilities ?? this.capabilities;
-      this.announcement = `${data.total} ${data.total === 1 ? "snag" : "snags"}`;
+      this.announcement = `${data.total} ${data.total === 1 ? "piece" : "pieces"} of feedback`;
       this.refreshCounts();
+      this.loadAssignments();
     } catch (error) {
       if (id === this.requestId) this.handleError(error);
     } finally {
@@ -398,6 +413,30 @@ const Inbox = () => ({
     results.forEach((result, index) => {
       this.counts[TABS[index].id] = result.status === "fulfilled" ? result.value.total : null;
     });
+  },
+
+  async loadAssignments() {
+    const project = this.project;
+    try {
+      const data = await this.api.assignments(project);
+      if (project !== this.project) return; // you've switched site since
+      this.assignments = data.assignments;
+      this.names = data.names;
+    } catch (error) {
+      this.handleError(error);
+    }
+  },
+
+  // Who can be assigned feedback on this site: its Notify list, plus whoever has it now.
+  get assignees() {
+    const notify = this.sites.find((site) => site.name === this.project)?.notify ?? [];
+    const current = this.assignments[this.selectedId];
+    return current && !notify.includes(current) ? [...notify, current] : notify;
+  },
+
+  personLabel(email) {
+    const name = this.names[email];
+    return name ? `${name} (${email})` : email;
   },
 
   setTab(id) {
@@ -473,7 +512,7 @@ const Inbox = () => ({
   // ---------------------------------------------------------------- actions
 
   can(permission, item = this.selected) {
-    // Servers that predate permissions send none: show everything, the server still checks.
+    // The server sends what you're allowed to do with each piece of feedback, and checks again on every change.
     return item?.permissions ? item.permissions[permission] !== false : true;
   },
 
@@ -490,6 +529,27 @@ const Inbox = () => ({
     } catch (error) {
       item.status = previous;
       this.handleError(error);
+    }
+  },
+
+  async assign(email) {
+    const item = this.selected;
+    if (!item || this.assigning) return;
+    const previous = this.assignments[item.id] ?? "";
+    if (email === previous) return;
+    this.assigning = true;
+    this.assignments = { ...this.assignments, [item.id]: email || undefined }; // optimistic
+    try {
+      const result = await this.api.assign(item.id, email || null);
+      if (result.name) this.names = { ...this.names, [result.email]: result.name };
+      if (!email) this.notify("Unassigned.");
+      else if (email === this.user?.email) this.notify("Assigned to you.");
+      else this.notify(`Assigned to ${this.names[email] ?? email}. They've been emailed.`);
+    } catch (error) {
+      this.assignments = { ...this.assignments, [item.id]: previous || undefined };
+      this.handleError(error);
+    } finally {
+      this.assigning = false;
     }
   },
 
@@ -530,7 +590,7 @@ const Inbox = () => ({
       this.items.splice(index, 1);
       this.total -= 1;
       this.selectedId = null;
-      this.notify("Snag deleted.");
+      this.notify("Feedback deleted.");
       this.refreshCounts();
       this.$nextTick(() => {
         const next = this.items[Math.min(index, this.items.length - 1)];

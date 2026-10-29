@@ -4,6 +4,7 @@
 //   /pinpoint.js      the one script tag you add to a client's site
 //   /api/auth/*       sign-in with a code sent by email
 //   /api/sites        your client sites and who's invited to them (team only)
+//   /api/assignments  who on your team each piece of feedback is assigned to (team only)
 //   /api/tcpinpoint   the API the widget and the inbox talk to
 //
 // Everything is saved as JSON files in data/. No database needed.
@@ -20,11 +21,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCollectionStore, StorePersistenceError } from "@tc-pinpoint/adapter-kit";
 import { createTcPinpointHandler } from "@tc-pinpoint/server";
+import { createAssignments } from "./lib/assignments.js";
 import { AuthError, createAuth } from "./lib/auth.js";
 import { createMailer } from "./lib/email.js";
 import { readJson, writeJson } from "./lib/json-file.js";
 import { createNotifier } from "./lib/notify.js";
-import { createSites } from "./lib/sites.js";
+import { createSites, normaliseEmail } from "./lib/sites.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dev = process.argv.includes("--dev");
@@ -106,6 +108,7 @@ const sites = createSites({
 });
 
 const auth = createAuth({ sessionsFile: path.join(dataDir, "sessions.json"), teamDomains, sites, mailer });
+const assignments = createAssignments({ file: path.join(dataDir, "assignments.json") });
 const notifier = createNotifier({ mailer, sites, isTeam: auth.isTeam });
 
 // Who's acting, and this server's public address, for the request being handled.
@@ -129,6 +132,14 @@ const store = {
     const context = requestContext.getStore();
     if (context) notifier.statusChanged(updated, previous, context.user);
     return updated;
+  },
+  async deleteFeedback(id) {
+    await snags.store.deleteFeedback(id);
+    assignments.remove(id);
+  },
+  async deleteAllFeedbacks(projectName) {
+    await snags.store.deleteAllFeedbacks(projectName);
+    assignments.removeProject(projectName);
   },
 };
 
@@ -286,6 +297,46 @@ async function handleSites(req, res) {
   res.end();
 }
 
+// GET ?project=name lists who's assigned what on a site; PUT assigns (or unassigns) one piece of feedback.
+// Only people on the site's Notify list can be assigned its feedback. Team only.
+async function handleAssignments(req, res) {
+  const user = auth.userFromRequest(req.headers);
+  if (!user) return sendJson(res, 401, { error: "Sign in first." });
+  if (user.role !== "team") return sendJson(res, 403, { error: "Only your team can assign feedback." });
+  if (!fromAllowedPage(req)) return sendJson(res, 403, { error: "Not allowed from this page." });
+
+  if (req.method === "GET") {
+    const projectName = new URL(req.url, "http://localhost").searchParams.get("project") ?? "";
+    const site = sites.get(projectName);
+    if (!site) return sendJson(res, 404, { error: "That site isn't in the list." });
+    const assigned = assignments.forProject(projectName);
+    // Names for everyone who can be (or already is) assigned, from when they last signed in.
+    const emails = new Set([...site.notify, ...Object.values(assigned)]);
+    const names = Object.fromEntries([...emails].map((email) => [email, auth.nameFor(email)]));
+    return sendJson(res, 200, { assignments: assigned, names });
+  }
+
+  if (req.method === "PUT") {
+    const { feedbackId, email: rawEmail } = await readBody(req);
+    const feedback = snags.find(String(feedbackId ?? ""));
+    if (!feedback) return sendJson(res, 404, { error: "That feedback doesn't exist any more." });
+    const email = rawEmail ? normaliseEmail(rawEmail) : null;
+    const site = sites.get(feedback.projectName);
+    if (email && !site?.notify.includes(email)) {
+      return sendJson(res, 400, { error: "Only people on this site's Notify list can be assigned its feedback." });
+    }
+    const previous = assignments.get(feedback.id)?.email ?? null;
+    assignments.set(feedback.id, { projectName: feedback.projectName, email, assignedBy: user.email });
+    if (email && email !== previous) {
+      notifier.assigned(feedback, { email, name: auth.nameFor(email) }, user, `${protocol(req)}://${req.headers.host}`);
+    }
+    return sendJson(res, 200, { feedbackId: feedback.id, email, name: email ? auth.nameFor(email) : null });
+  }
+
+  res.writeHead(405, { Allow: "GET, PUT" });
+  res.end();
+}
+
 async function toRequest(req) {
   // The real public address, so the API recognises the inbox's own requests behind a proxy.
   const url = `${protocol(req)}://${req.headers.host ?? `localhost:${port}`}${req.url}`;
@@ -352,6 +403,7 @@ const server = createServer(async (req, res) => {
 
     if (pathname.startsWith("/api/auth/")) return await handleAuth(req, res, pathname);
     if (pathname === "/api/sites") return await handleSites(req, res);
+    if (pathname === "/api/assignments") return await handleAssignments(req, res);
 
     if (pathname === "/pinpoint.js" || pathname === "/widget.js") {
       res.setHeader("Access-Control-Allow-Origin", "*");

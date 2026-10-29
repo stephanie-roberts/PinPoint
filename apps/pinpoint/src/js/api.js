@@ -1,4 +1,4 @@
-// Small client for the PinPoint HTTP API (see /docs/server, "HTTP reference").
+// Small client for the PinPoint server's API (server.js).
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -64,5 +64,9 @@ export function createApi({ endpoint, getKey }) {
     me: () => request("GET", { path: "/api/auth/me" }),
     signOut: () => request("POST", { path: "/api/auth/signout", body: {} }),
     removeSite: (name) => request("DELETE", { path: "/api/sites", body: { name } }),
+
+    // Who each piece of feedback is assigned to (server.js, /api/assignments)
+    assignments: (project) => request("GET", { path: "/api/assignments", query: { project } }),
+    assign: (feedbackId, email) => request("PUT", { path: "/api/assignments", body: { feedbackId, email } }),
   };
 }

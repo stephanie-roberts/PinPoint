@@ -105,6 +105,7 @@ Leave that Terminal window open while you use it. To stop it, press **Ctrl + C**
   - any console errors from the client's browser
 - In a snag you can:
   - set its status: **Open**, **In progress**, **Resolved** or **Won't fix**
+  - **assign** it to someone on the site's **Notify** list (they're emailed, unless you assign it to yourself)
   - **reply** to the client
   - use **Open on page** to jump to that exact spot on the site
   - **delete** it
@@ -124,7 +125,7 @@ Leave that Terminal window open while you use it. To stop it, press **Ctrl + C**
 
      The first one is used for "Open on page" links.
    - **Clients**: the email addresses of the people who'll review this site, one per line.
-   - **Notify**: the team emails to tell about new snags and client replies on this site. It starts with your own email.
+   - **Notify**: the team emails to tell about new snags and client replies on this site. It starts with your own email. These are also the people you can assign the site's feedback to.
 3. Copy the **snippet** and paste it into the site's template, just before `</body>`:
 
    ```html
@@ -158,6 +159,7 @@ Emails go out straight away:
 | A client replies | The **Notify** list | The reply and a link to the inbox |
 | Your team replies | The client who left the snag | Your reply and a link to the snag on their site, where they can reply |
 | A snag is marked **Resolved** or **Won't fix** | The client who left the snag | Which one it was, with a link to the snag on their site |
+| A snag is assigned to someone | The person it's assigned to | The snag, who left it, and a link to it in the inbox |
 
 A few rules keep the emails useful:
 
@@ -222,8 +224,8 @@ tcpinpoint/
 │   ├── loader/pinpoint.js    the script tag for client sites (sign-in, then loads the widget)
 │   ├── demo.html             the practice page (npm run dev only)
 │   ├── server.js             the server: API, sign-in, sites, serves everything
-│   ├── lib/                  sign-in codes, emails, notifications, sites, saving files
-│   ├── data/                 your saved snags, sites and sign-ins (created when it first runs)
+│   ├── lib/                  sign-in codes, emails, notifications, sites, assignments, saving files
+│   ├── data/                 your saved snags, sites, assignments and sign-ins (created when it first runs)
 │   └── .env                  your settings
 ├── packages/
 │   ├── widget/               the snagging widget clients use
