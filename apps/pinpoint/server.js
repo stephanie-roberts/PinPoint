@@ -43,7 +43,7 @@ const dataFile = path.resolve(here, process.env.TC_PINPOINT_DATA || "data/snags.
 const dataDir = path.dirname(dataFile);
 // Hosts like Railway and Render sit behind a proxy: trust its headers for the visitor's address and https.
 const trustProxy = process.env.TC_PINPOINT_TRUST_PROXY === "true";
-const teamDomains = (process.env.TC_PINPOINT_TEAM_DOMAINS || "thoughtcollective.com")
+const teamDomains = (process.env.TC_PINPOINT_TEAM_DOMAINS || "example.com")
   .split(",")
   .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
   .filter(Boolean);

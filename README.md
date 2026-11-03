@@ -59,7 +59,7 @@ Open an item to:
 - View browser information. Feedback left with older versions may also include console and network details.
 - Delete feedback you no longer need.
 
-Feedback can also be assigned to someone on the site's team notification list.
+Feedback can also be assigned to someone on the site's Notify list, using **Assigned to**.
 
 Keyboard shortcuts are available in the inbox: `j` / `k` to move between items, `/` to search and `Esc` to close. Use **Ctrl + Enter** or **⌘ + Enter** to send a reply.
 
@@ -69,16 +69,16 @@ Go to **Sites → Add a site** and fill in:
 
 | Field | What to enter |
 |---|---|
-| Site name | A short name such as `example-site`. Use lowercase letters, numbers and dashes. Start with a letter or number. |
-| Website URLs | Each address the widget will run on, one per line. Include live, staging or local addresses as needed. Put the main address first. |
-| Client email addresses | The people who can leave feedback on this website, one email per line. |
-| Team notification emails | The team members who should receive new feedback and client replies, one email per line. This is under **Email notifications** in the form. |
+| Name | A short name such as `example-site`. Use lowercase letters, numbers and dashes. Start with a letter or number. |
+| Addresses | Each address the widget will run on, one per line. Include live, staging or local addresses as needed. Put the main address first: "Open on page" links use it. |
+| Clients | The people who can leave feedback on this website, one email per line. |
+| Notify | The team members who should receive new feedback and client replies, one email per line. These are also the people its feedback can be assigned to. |
 
 The site name is used to link feedback to the website, so it can't be changed afterwards.
 
 ### Adding the widget
 
-Save the site, expand **Installation** and copy the installation code. Add it to the website template before the closing `</body>` tag:
+Save the site, then under **Snippet for this site** click **Copy snippet**. Add it to the website template before the closing `</body>` tag:
 
 ```html
 <script
@@ -104,13 +104,13 @@ Once signed in, clients see a round feedback button in the bottom-right corner. 
 
 A screenshot of the area around the box (or of the screen, for whole-page feedback) is saved with each piece of feedback and shows in the inbox. If a screenshot can't be taken, the feedback is still sent without one.
 
-When someone from your team signs in on a client's site, each piece of feedback also has an **Assigned to** menu. It lists the site's team notification list, works the same as assigning in the inbox, and emails the person it's assigned to. Clients don't see it.
+When someone from your team signs in on a client's site, each piece of feedback also has an **Assigned to** menu. It lists the site's Notify list, works the same as assigning in the inbox, and emails the person it's assigned to. Clients don't see it.
 
 The widget's code is in `apps/pinpoint/loader/pinpoint-widget.js`, a single JavaScript file that doesn't need building: save it and reload the page.
 
 ### Sharing it with clients
 
-Click **Copy client link** and send that link to the client. It opens their website with feedback enabled, for example:
+Under **Link to send clients**, click **Copy** and send that link to the client. It opens their website with feedback enabled, for example:
 
 ```text
 https://www.example.com/?feedback
@@ -124,7 +124,7 @@ Feedback mode stays enabled in that browser until the client signs out, turns it
 
 ### Updating a site
 
-Expand **Settings** to view the site's URLs, client access and notification recipients. Choose **Edit site** to change them.
+Each site on the **Sites** screen shows its addresses, clients and Notify list. Click **Edit** to change them.
 
 Changes take effect without restarting the server. Removing a client removes their access, including when they're already signed in.
 
@@ -134,8 +134,8 @@ Removing a site stops new feedback. Existing feedback is kept and becomes availa
 
 | What happens | Who gets an email |
 |---|---|
-| New feedback is submitted | The site's team notification list |
-| A client replies | The site's team notification list |
+| New feedback is submitted | The site's Notify list |
+| A client replies | The site's Notify list |
 | A team member replies | The client who originally left the feedback |
 | Feedback moves from an open status to **Resolved** or **Won't fix** | The client who originally left the feedback |
 | Feedback is assigned | The person it's assigned to |
@@ -178,8 +178,8 @@ Settings are in `apps/pinpoint/.env`. See `.env.example` for the full list and n
 | Setting | Purpose | Default |
 |---|---|---|
 | `POSTMARK_SERVER_TOKEN` | Sends sign-in codes and notification emails. Required when live. | Empty |
-| `TC_PINPOINT_EMAIL_FROM` | Sender address verified in Postmark. | `pinpoint@example.com` |
-| `TC_PINPOINT_TEAM_DOMAINS` | Email domains treated as team members, separated by commas. | `example.com` |
+| `TC_PINPOINT_EMAIL_FROM` | Sender address verified in Postmark. Required once `POSTMARK_SERVER_TOKEN` is set. | None |
+| `TC_PINPOINT_TEAM_DOMAINS` | Email domains treated as team members, separated by commas. Set this to your own domain. | `example.com` |
 | `TC_PINPOINT_TRUST_PROXY` | Trusts the hosting proxy for visitor IPs and HTTPS information. | `false` |
 | `TC_PINPOINT_DATA` | Feedback file location. Related data is saved in the same folder. | `data/snags.json` |
 | `PORT` | Server port. | `3000` |
@@ -226,7 +226,7 @@ If another app is using port 3000, stop it or set `PORT=3001` in `.env`, restart
 
 **Notification emails aren't arriving**
 
-Check the site's team notification list and any errors in Terminal. You won't receive notifications for your own actions.
+Check the site's Notify list and any errors in Terminal. You won't receive notifications for your own actions.
 
 **The widget isn't showing**
 
@@ -234,9 +234,9 @@ Check the site's team notification list and any errors in Terminal. You won't re
 - Check that the website's full origin is listed in **Sites**, including the protocol, `www` if used, and any non-default port.
 - Check that the installation code's `data-site` matches the saved site name.
 
-**Tests fail with a `reading 'bind'` error**
+**`npm install` or `npm run verify` fails straight away**
 
-Check your Node version. The project requires Node.js 22.19 or newer.
+Check your Node version with `node --version`. The project requires Node.js 22.19 or newer.
 
 ## Sign-in and access
 
