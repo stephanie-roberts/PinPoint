@@ -197,13 +197,13 @@
     @apply pointer-events-none absolute right-[16px] top-1/2 w-[12px] -translate-y-1/2;
   }
 
-  /* feedback rows: cards; the open one gets the brand's violet offset shadow */
+  /* feedback rows: cards; the open one gets a dark outline */
   .row {
     @apply flex w-full gap-[16px] rounded-[16px] border-2 border-transparent bg-white p-[16px] text-left shadow-[0_0_0_1px_var(--color-line)] transition duration-300 hover:shadow-[0_0_0_1px_var(--color-ink)] md:p-[18px];
   }
 
   .row[aria-current="true"] {
-    @apply border-ink shadow-[6px_6px_0_var(--color-violet)] hover:shadow-[6px_6px_0_var(--color-violet)];
+    @apply border-ink shadow-none hover:shadow-none;
   }
 
   .row:focus-visible {

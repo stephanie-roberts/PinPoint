@@ -32,10 +32,12 @@
                 </nav>
 
                 <span class="mx-[10px] hidden h-[24px] w-px bg-ink-line sm:block" aria-hidden="true"></span>
+
                 <span class="hidden items-center gap-[10px] text-[15px] text-on-ink lg:flex">
                     <span class="avatar" aria-hidden="true" x-text="initials(user?.name)"></span>
                     <span x-text="user?.name"></span>
                 </span>
+
                 <button type="button" @click="signOut()" class="rounded-full px-[16px] py-[10px] text-[15px] font-medium text-on-ink transition duration-300 hover:text-white">Sign out</button>
 
             </div>
@@ -44,7 +46,6 @@
 
     </header>
 
-    <!-- Sign in -->
     <section x-show="!signedIn" x-cloak class="mx-auto mb-[90px] mt-[48px] max-w-[520px] px-[16px] md:mt-[96px]">
 
         <div class="card p-[28px] md:p-[44px]">
@@ -53,14 +54,16 @@
             <h1 class="page-title mt-[24px]">Sign in</h1>
 
             <form x-show="signInStep === 'details'" @submit.prevent="requestCode()" class="mt-[16px]">
-                <p class="intro">Use your work email. We'll email you a 6-digit code.</p>
+                
+                <p class="intro">We'll email you a 6-digit code.</p>
 
                 <div class="mt-[32px]">
                     <label for="sign-in-name" class="field-label">Your name</label>
                     <input id="sign-in-name" type="text" x-model="nameDraft" required maxlength="100" autocomplete="name" class="input">
                 </div>
+
                 <div class="mt-[20px]">
-                    <label for="sign-in-email" class="field-label">Work email</label>
+                    <label for="sign-in-email" class="field-label">Your email address</label>
                     <input id="sign-in-email" x-ref="email" type="email" x-model="emailDraft" required autocomplete="email" class="input">
                 </div>
 
@@ -69,6 +72,7 @@
                 <button type="submit" class="btn-violet mt-[32px] w-full" :disabled="checking || loading">
                     <span x-text="checking ? 'Sending…' : (loading ? 'Signing in…' : 'Email me a code')"></span>
                 </button>
+
             </form>
 
             <form x-show="signInStep === 'code'" @submit.prevent="verifyCode()" class="mt-[16px]">
@@ -76,11 +80,15 @@
                 <p class="intro" id="code-help">We've emailed a code to <strong class="text-ink" x-text="emailDraft"></strong>. It works for 10 minutes.</p>
 
                 <div class="mt-[32px]">
+
                     <label for="sign-in-code" class="field-label">6-digit code</label>
-                    <input id="sign-in-code" x-ref="code" type="text" x-model="codeDraft" required
-                           inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="code-help"
-                           @input="codeDraft = codeDraft.replace(/\D/g, '').slice(0, 6); if (codeDraft.length === 6) verifyCode()"
-                           class="input input-strong text-center font-display text-3xl font-bold tracking-[0.4em]">
+                    <input 
+                        id="sign-in-code" x-ref="code" type="text" x-model="codeDraft" required
+                        inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="code-help"
+                        @input="codeDraft = codeDraft.replace(/\D/g, '').slice(0, 6); if (codeDraft.length === 6) verifyCode()"
+                        class="input input-strong text-center font-display text-3xl font-bold tracking-[0.4em]"
+                    >
+
                 </div>
 
                 <p x-show="signInError" role="alert" class="mt-[20px] text-sm font-medium text-danger" x-text="signInError"></p>
@@ -88,29 +96,31 @@
                 <button type="submit" class="btn-violet mt-[32px] w-full" :disabled="checking || loading">
                     <span x-text="checking || loading ? 'Checking…' : 'Sign in'"></span>
                 </button>
+
                 <div class="mt-[20px] flex flex-wrap items-center justify-center gap-[24px]">
                     <button type="button" class="text-link text-muted hover:text-ink" @click="useDifferentEmail()">Use a different email</button>
                     <button type="button" class="text-link text-muted hover:text-ink" @click="requestCode()" :disabled="checking">Send a new code</button>
                 </div>
+
             </form>
 
         </div>
 
     </section>
 
-    <!-- Feedback -->
     <main id="main" x-show="signedIn && view === 'snags'" x-cloak class="wrap pb-[90px] pt-[32px] md:pt-[48px]">
 
         <div class="flex flex-wrap items-end justify-between gap-[20px]">
+
             <div>
                 <h1 id="list-heading" class="page-title">Feedback</h1>
-                <p class="mt-[10px] text-[17px] text-muted" x-show="project">
-                    <span x-text="counts.active === null ? 'Feedback' : (counts.active === 0 ? 'Nothing to sort' : `${counts.active} to sort`)"></span>
-                    on <strong class="text-ink" x-text="project"></strong>
-                </p>
+                <p class="mt-[10px] text-[17px] text-muted" x-show="project"><span x-text="counts.active === null ? 'Feedback' : (counts.active === 0 ? 'Nothing to sort' : `${counts.active} to sort`)"></span> on <strong class="text-ink" x-text="project"></strong></p>
             </div>
+
             <div x-show="projects.length > 1" class="w-full sm:w-auto">
+
                 <label for="site-picker" class="mb-[6px] block text-[13px] font-semibold text-muted">Site</label>
+
                 <span class="select-box min-w-[220px]">
                     <select id="site-picker" x-model="project">
                         <template x-for="p in projects" :key="p.name">
@@ -119,7 +129,9 @@
                     </select>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2.4"/></svg>
                 </span>
+
             </div>
+
         </div>
 
         <div class="mt-[32px] lg:grid lg:grid-cols-[minmax(380px,1fr)_minmax(0,1.35fr)] lg:items-start lg:gap-[28px]">
@@ -127,15 +139,19 @@
             <section aria-labelledby="list-heading" class="min-w-0">
 
                 <fieldset class="tabs">
+
                     <legend class="sr-only">Status</legend>
+
                     <template x-for="t in TABS" :key="t.id">
                         <button type="button" @click="setTab(t.id)" :aria-pressed="tab === t.id">
                             <span x-text="t.label"></span><span class="count" x-show="counts[t.id] !== null"><span class="sr-only">, </span><span x-text="counts[t.id]"></span></span>
                         </button>
                     </template>
+
                 </fieldset>
 
                 <search>
+
                     <form class="mt-[16px] flex flex-wrap gap-[10px]" @submit.prevent="refresh()">
 
                         <label class="box min-w-0 flex-[1_1_240px] gap-[10px]">
@@ -158,9 +174,11 @@
                         </label>
 
                     </form>
+
                 </search>
 
                 <div x-show="loading && !items.length" aria-hidden="true" class="mt-[16px] space-y-[10px]">
+
                     <template x-for="i in 4" :key="i">
                         <div class="flex gap-[16px] rounded-[16px] bg-white p-[18px] shadow-[0_0_0_1px_var(--color-line)]">
                             <div class="h-[56px] w-[72px] animate-pulse rounded-[10px] bg-paper"></div>
@@ -171,6 +189,7 @@
                             </div>
                         </div>
                     </template>
+
                 </div>
 
                 <div x-show="!loading && !items.length" class="card mt-[16px] px-[24px] py-[48px] text-center md:py-[64px]">
@@ -180,8 +199,11 @@
                 </div>
 
                 <ul x-show="items.length" :aria-busy="loading" class="mt-[16px] space-y-[10px]">
+
                     <template x-for="item in items" :key="item.id">
+
                         <li class="relative">
+
                             <button type="button" class="row" :class="can('canDelete', item) ? 'pr-[64px] md:pr-[68px]' : ''" :id="`row-${item.id}`" @click="open(item.id)" :aria-current="selectedId === item.id">
 
                                 <span class="relative h-[56px] w-[72px] shrink-0 overflow-hidden rounded-[10px] border border-line bg-paper" aria-hidden="true">
@@ -236,6 +258,7 @@
                             </fieldset>
                         </li>
                     </template>
+
                 </ul>
 
                 <div x-show="hasMore" class="pt-[24px]">
@@ -243,12 +266,6 @@
                         <span x-text="loadingMore ? 'Loading…' : `Show more (${total - items.length} left)`"></span>
                     </button>
                 </div>
-
-                <p class="keys mt-[24px] hidden text-[13px] text-subtle md:block">
-                    <kbd>j</kbd> <kbd>k</kbd> to move,
-                    <kbd>/</kbd> to search,
-                    <kbd>Esc</kbd> to close
-                </p>
 
             </section>
 
@@ -295,7 +312,6 @@
                                 </p>
                             </div>
                             <div class="flex flex-wrap items-center gap-[10px]">
-                                <!-- biome-ignore lint/a11y/useValidAnchor: Alpine sets the href from the feedback's page -->
                                 <a :href="pageLink(selected)" x-show="pageLink(selected)" target="_blank" rel="noopener" class="btn-outline">
                                     <svg class="w-[16px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
                                     Open on page
@@ -334,10 +350,6 @@
                                 <div class="rounded-[12px] bg-paper px-[16px] py-[14px]">
                                     <dt>Screen size</dt>
                                     <dd x-text="selected.viewport"></dd>
-                                </div>
-                                <div class="rounded-[12px] bg-paper px-[16px] py-[14px] sm:col-span-2" x-show="selected.annotations?.length">
-                                    <dt>Element</dt>
-                                    <dd class="font-mono text-[13px] font-medium" x-text="selected.annotations?.[0]?.cssSelector"></dd>
                                 </div>
                             </dl>
 
@@ -456,8 +468,7 @@
 
     </main>
 
-    <!-- Sites -->
-    <section x-show="signedIn && view === 'sites'" x-cloak aria-labelledby="sites-heading" class="mx-auto max-w-[1120px] px-[16px] pb-[96px] pt-[32px] md:px-[32px] md:pt-[48px]">
+    <section x-show="signedIn && view === 'sites'" x-cloak aria-labelledby="sites-heading" class="wrap pb-[96px] pt-[32px] md:pt-[48px]">
 
         <div class="flex flex-wrap items-end justify-between gap-[24px]">
             <div class="max-w-[640px]">
