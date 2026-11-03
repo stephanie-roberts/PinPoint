@@ -2,6 +2,8 @@
 //
 //   /                 the inbox, where your team works through the snags
 //   /pinpoint.js      the one script tag you add to a client's site
+//   /pinpoint-widget.js  PinPoint's own widget (used when the script tag has data-widget="pinpoint")
+//   /html2canvas.js   the screenshot library PinPoint's widget uses
 //   /api/auth/*       sign-in with a code sent by email
 //   /api/sites        your client sites and who's invited to them (team only)
 //   /api/assignments  who on your team each piece of feedback is assigned to (team only)
@@ -14,6 +16,7 @@
 //   npm start         production: run `npm run build` first
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -194,12 +197,12 @@ function protocol(req) {
   return forwarded === "https" ? "https" : "http";
 }
 
-// Sign-in is called from client sites too, so it answers their CORS requests.
-function cors(req, res) {
+// Sign-in and assigning are called from client sites too, so they answer those sites' CORS requests.
+function cors(req, res, methods = "GET, POST, OPTIONS") {
   const origin = req.headers.origin;
   if (origin && sites.origins().includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", methods);
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Max-Age", "86400");
   }
@@ -300,6 +303,12 @@ async function handleSites(req, res) {
 // GET ?project=name lists who's assigned what on a site; PUT assigns (or unassigns) one piece of feedback.
 // Only people on the site's Notify list can be assigned its feedback. Team only.
 async function handleAssignments(req, res) {
+  cors(req, res, "GET, PUT, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
   const user = auth.userFromRequest(req.headers);
   if (!user) return sendJson(res, 401, { error: "Sign in first." });
   if (user.role !== "team") return sendJson(res, 403, { error: "Only your team can assign feedback." });
@@ -313,7 +322,7 @@ async function handleAssignments(req, res) {
     // Names for everyone who can be (or already is) assigned, from when they last signed in.
     const emails = new Set([...site.notify, ...Object.values(assigned)]);
     const names = Object.fromEntries([...emails].map((email) => [email, auth.nameFor(email)]));
-    return sendJson(res, 200, { assignments: assigned, names });
+    return sendJson(res, 200, { assignments: assigned, names, people: site.notify });
   }
 
   if (req.method === "PUT") {
@@ -369,6 +378,16 @@ function sendFile(res, file, type, cache = "no-cache") {
 
 const widgetFile = path.resolve(here, "../../packages/widget/dist/index.global.js");
 const loaderFile = path.join(here, "loader/pinpoint.js");
+const ownWidgetFile = path.join(here, "loader/pinpoint-widget.js");
+// The screenshot library PinPoint's widget loads when someone leaves feedback.
+const screenshotFile = (() => {
+  try {
+    const main = createRequire(import.meta.url).resolve("html2canvas-pro");
+    return path.join(path.dirname(main), "html2canvas-pro.min.js");
+  } catch {
+    return null;
+  }
+})();
 const distDir = path.join(here, "dist");
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -405,9 +424,15 @@ const server = createServer(async (req, res) => {
     if (pathname === "/api/sites") return await handleSites(req, res);
     if (pathname === "/api/assignments") return await handleAssignments(req, res);
 
-    if (pathname === "/pinpoint.js" || pathname === "/widget.js") {
+    const scripts = {
+      "/pinpoint.js": loaderFile,
+      "/widget.js": widgetFile,
+      "/pinpoint-widget.js": ownWidgetFile,
+      "/html2canvas.js": screenshotFile,
+    };
+    if (pathname in scripts) {
       res.setHeader("Access-Control-Allow-Origin", "*");
-      return sendFile(res, pathname === "/pinpoint.js" ? loaderFile : widgetFile, TYPES[".js"]);
+      return sendFile(res, scripts[pathname] ?? "", TYPES[".js"]);
     }
 
     if (vite) {

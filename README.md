@@ -92,6 +92,35 @@ Use the code generated for your site. It includes your PinPoint server address a
 
 For a Statamic site, add it near the bottom of the main layout, such as `layout.antlers.html`.
 
+### Using PinPoint's own widget
+
+PinPoint has two widgets. By default, client sites use the original SitePing widget. To use PinPoint's own, simpler widget instead, add `data-widget="pinpoint"` to the installation code:
+
+```html
+<script
+  src="https://your-pinpoint-server/pinpoint.js"
+  data-site="example-site"
+  data-widget="pinpoint"
+  defer
+></script>
+```
+
+The demo page already uses it. Both widgets save feedback in the same way, so it appears in the inbox and sends the same emails either way.
+
+With PinPoint's widget, clients can:
+
+- Drag a box around part of the page, or click an element, then choose a type and leave a comment.
+- Leave feedback about the whole page.
+- See numbered pins on open feedback, and click a pin to read it and reply.
+- Open a list of all feedback on the page.
+- Hide or show the pins.
+
+It takes a screenshot of the area around the box (or of the screen, for whole-page feedback), which shows in the inbox. If the screenshot can't be taken, the feedback is still sent without one.
+
+When someone from your team signs in on a client's site, each piece of feedback also has an **Assigned to** menu. It lists the site's team notification list, works the same as assigning in the inbox, and emails the person it's assigned to. Clients don't see it.
+
+It doesn't capture console and network details yet. Its code is in `apps/pinpoint/loader/pinpoint-widget.js`, a single JavaScript file that doesn't need building: save it and reload the page.
+
 ### Sharing it with clients
 
 Click **Copy client link** and send that link to the client. It opens their website with feedback enabled, for example:
@@ -173,6 +202,7 @@ Settings are in `apps/pinpoint/.env`. See `.env.example` for the full list and n
 | Folder | What's in it |
 |---|---|
 | `apps/pinpoint/` | The inbox, server, widget loader and local demo. |
+| `apps/pinpoint/loader/` | The script added to client sites, and PinPoint's own widget. |
 | `apps/pinpoint/lib/` | Sign-in, email, notifications, site settings and file storage. |
 | `apps/pinpoint/data/` | Saved app data, created when needed. |
 | `packages/widget/` | The feedback widget used on client websites. |
