@@ -14,9 +14,7 @@
     },
     "//#check:root": {
       "inputs": [
-        "e2e/**",
         "packages/core/src/**",
-        "playwright.config.ts",
         "vitest.config.ts",
         "tsup.preset.ts",
         "tsconfig.json"

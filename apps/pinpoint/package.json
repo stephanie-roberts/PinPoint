@@ -15,7 +15,6 @@
   "dependencies": {
     "@tc-pinpoint/adapter-kit": "*",
     "@tc-pinpoint/server": "*",
-    "@tc-pinpoint/widget": "*",
     "alpinejs": "^3.14.1",
     "html2canvas-pro": "^2.4.3"
   },

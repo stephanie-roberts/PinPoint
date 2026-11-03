@@ -2,7 +2,7 @@
 //
 //   /                 the inbox, where your team works through the snags
 //   /pinpoint.js      the one script tag you add to a client's site
-//   /pinpoint-widget.js  PinPoint's own widget (used when the script tag has data-widget="pinpoint")
+//   /pinpoint-widget.js  the feedback widget pinpoint.js loads once someone signs in
 //   /html2canvas.js   the screenshot library PinPoint's widget uses
 //   /api/auth/*       sign-in with a code sent by email
 //   /api/sites        your client sites and who's invited to them (team only)
@@ -376,10 +376,9 @@ function sendFile(res, file, type, cache = "no-cache") {
   res.end(readFileSync(file));
 }
 
-const widgetFile = path.resolve(here, "../../packages/widget/dist/index.global.js");
 const loaderFile = path.join(here, "loader/pinpoint.js");
-const ownWidgetFile = path.join(here, "loader/pinpoint-widget.js");
-// The screenshot library PinPoint's widget loads when someone leaves feedback.
+const widgetFile = path.join(here, "loader/pinpoint-widget.js");
+// The screenshot library the widget loads when someone leaves feedback.
 const screenshotFile = (() => {
   try {
     const main = createRequire(import.meta.url).resolve("html2canvas-pro");
@@ -426,8 +425,7 @@ const server = createServer(async (req, res) => {
 
     const scripts = {
       "/pinpoint.js": loaderFile,
-      "/widget.js": widgetFile,
-      "/pinpoint-widget.js": ownWidgetFile,
+      "/pinpoint-widget.js": widgetFile,
       "/html2canvas.js": screenshotFile,
     };
     if (pathname in scripts) {

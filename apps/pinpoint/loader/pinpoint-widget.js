@@ -1,9 +1,9 @@
 /*!
  * PinPoint widget: draw a box on the page, leave a note, see and reply to notes already left.
  *
- * Loaded by pinpoint.js once someone has signed in, when the script tag has data-widget="pinpoint":
+ * Loaded by pinpoint.js once someone has signed in:
  *
- *   <script src="https://your-pinpoint-server/pinpoint.js" data-site="test" data-widget="pinpoint" defer></script>
+ *   <script src="https://your-pinpoint-server/pinpoint.js" data-site="test" defer></script>
  *
  * It talks to the same API as the inbox (/api/tcpinpoint), so feedback left here shows up there.
  * Everything is drawn inside a closed shadow root, so the site's CSS can't change it and its CSS
@@ -281,7 +281,7 @@
 
   const flatText = (el) => (el.textContent ?? "").replace(/\s+/g, " ").trim();
 
-  // Everything the server needs to find this element again (the same fields SitePing's widget sends).
+  // Everything needed to find this element again: id, CSS selector, XPath and some of its text.
   function describe(el) {
     const text = flatText(el);
     return {

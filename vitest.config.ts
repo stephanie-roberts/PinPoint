@@ -15,15 +15,12 @@ export default defineConfig({
     // These packages export only their built `dist`. Tests that import one resolve it to
     // source, like `@tc-pinpoint/core`, so they need no prior build.
     alias: {
-      "@tc-pinpoint/adapter-localstorage": source("adapter-localstorage"),
       "@tc-pinpoint/adapter-memory": source("adapter-memory"),
       "@tc-pinpoint/server": source("server"),
     },
   },
   test: {
-    // e2e/: unit tests of the fixture servers' helpers (Playwright runs *.spec.ts there).
-    include: ["packages/**/__tests__/**/*.test.{ts,tsx}", "e2e/**/*.test.mjs"],
-    setupFiles: ["packages/widget/__tests__/setup-i18n.ts"],
+    include: ["packages/**/__tests__/**/*.test.{ts,tsx}"],
     // Type-level tests: *.test-d.ts files are statically checked by tsc via
     // vitest's typecheck mode (they never execute). They lock the public
     // contracts — config unions rejecting invalid combos, the store
@@ -49,12 +46,6 @@ export default defineConfig({
         "**/index.ts",
         "**/icons.{ts,tsx}",
         "**/styles/**",
-        // html2canvas-pro wrapper — the success/downscale paths require a real
-        // browser canvas (jsdom can't drive `getContext('2d').drawImage` or
-        // `toDataURL` for image data). Failure-path test lives in
-        // `__tests__/widget/screenshot.test.ts`; the happy path is covered
-        // by E2E and manual smoke tests.
-        "**/widget/src/screenshot.ts",
       ],
       thresholds: {
         lines: 95,

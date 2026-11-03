@@ -41,7 +41,7 @@ Codes expire after 10 minutes. Once signed in, your session lasts 30 days unless
 
 1. Open [the demo page](http://localhost:3000/demo.html?feedback).
 2. Click **Sign in to leave feedback** and sign in.
-3. Open the feedback widget and select the pencil tool.
+3. Click the round feedback button in the bottom-right corner and choose **Leave feedback**.
 4. Draw a box around part of the page, choose a type and add your comment.
 5. Click **Send**, then open the inbox and select the **test** site to see it.
 
@@ -56,10 +56,10 @@ Open an item to:
 - View its screenshot and open the original page.
 - Change its status to **Open**, **In progress**, **Resolved** or **Won't fix**.
 - Reply to the client.
-- View browser information and any captured console or network details.
+- View browser information. Feedback left with older versions may also include console and network details.
 - Delete feedback you no longer need.
 
-If assignment controls are available in your version of the inbox, feedback can also be assigned to someone on the site's team notification list.
+Feedback can also be assigned to someone on the site's team notification list.
 
 Keyboard shortcuts are available in the inbox: `j` / `k` to move between items, `/` to search and `Esc` to close. Use **Ctrl + Enter** or **⌘ + Enter** to send a reply.
 
@@ -92,22 +92,9 @@ Use the code generated for your site. It includes your PinPoint server address a
 
 For a Statamic site, add it near the bottom of the main layout, such as `layout.antlers.html`.
 
-### Using PinPoint's own widget
+### What clients can do
 
-PinPoint has two widgets. By default, client sites use the original SitePing widget. To use PinPoint's own, simpler widget instead, add `data-widget="pinpoint"` to the installation code:
-
-```html
-<script
-  src="https://your-pinpoint-server/pinpoint.js"
-  data-site="example-site"
-  data-widget="pinpoint"
-  defer
-></script>
-```
-
-The demo page already uses it. Both widgets save feedback in the same way, so it appears in the inbox and sends the same emails either way.
-
-With PinPoint's widget, clients can:
+Once signed in, clients see a round feedback button in the bottom-right corner. From there they can:
 
 - Drag a box around part of the page, or click an element, then choose a type and leave a comment.
 - Leave feedback about the whole page.
@@ -115,11 +102,11 @@ With PinPoint's widget, clients can:
 - Open a list of all feedback on the page.
 - Hide or show the pins.
 
-It takes a screenshot of the area around the box (or of the screen, for whole-page feedback), which shows in the inbox. If the screenshot can't be taken, the feedback is still sent without one.
+A screenshot of the area around the box (or of the screen, for whole-page feedback) is saved with each piece of feedback and shows in the inbox. If a screenshot can't be taken, the feedback is still sent without one.
 
 When someone from your team signs in on a client's site, each piece of feedback also has an **Assigned to** menu. It lists the site's team notification list, works the same as assigning in the inbox, and emails the person it's assigned to. Clients don't see it.
 
-It doesn't capture console and network details yet. Its code is in `apps/pinpoint/loader/pinpoint-widget.js`, a single JavaScript file that doesn't need building: save it and reload the page.
+The widget's code is in `apps/pinpoint/loader/pinpoint-widget.js`, a single JavaScript file that doesn't need building: save it and reload the page.
 
 ### Sharing it with clients
 
@@ -202,14 +189,13 @@ Settings are in `apps/pinpoint/.env`. See `.env.example` for the full list and n
 | Folder | What's in it |
 |---|---|
 | `apps/pinpoint/` | The inbox, server, widget loader and local demo. |
-| `apps/pinpoint/loader/` | The script added to client sites, and PinPoint's own widget. |
+| `apps/pinpoint/loader/` | The script added to client sites, and the feedback widget it loads. |
 | `apps/pinpoint/lib/` | Sign-in, email, notifications, site settings and file storage. |
 | `apps/pinpoint/data/` | Saved app data, created when needed. |
-| `packages/widget/` | The feedback widget used on client websites. |
 | `packages/server/` | Feedback API and permissions. |
 | `packages/core/` | Shared types and rules. |
-| `packages/adapter-*/` | Storage adapters and shared adapter code. |
-| `e2e/` | Browser tests. |
+| `packages/adapter-kit/` | Saves feedback to a file. |
+| `packages/adapter-memory/` | An in-memory store used by the tests. |
 
 ## Commands
 
@@ -222,7 +208,6 @@ Run these from the main project folder.
 | `npm start` | Runs the built app. |
 | `npm run verify` | Runs the build, type checks, lint and tests. |
 | `npm run lint:fix` | Applies automatic lint fixes. |
-| `npm run test:e2e` | Runs the browser tests. Run `npx playwright install` first. |
 
 ## Common issues
 

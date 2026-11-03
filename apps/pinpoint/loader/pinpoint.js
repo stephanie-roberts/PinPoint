@@ -3,8 +3,6 @@
  *
  *   <script src="https://your-pinpoint-server/pinpoint.js" data-site="test" defer></script>
  *
- * Add data-widget="pinpoint" to use PinPoint's own widget (loader/pinpoint-widget.js) instead of SitePing's.
- *
  * Nothing shows to ordinary visitors. Open the site with ?feedback on the end of the address,
  * sign in with your name and email (a code is emailed to you), and the snagging widget appears.
  * It stays on in that browser until you sign out. ?feedback=off turns it off again.
@@ -15,7 +13,6 @@
 
   const script = document.currentScript;
   const site = script?.dataset.site;
-  const ownWidget = script?.dataset.widget === "pinpoint";
   if (!script || !site) {
     console.warn('[tcpinpoint] Add data-site="your-site-name" to the pinpoint.js script tag.');
     return;
@@ -268,11 +265,12 @@
 
   let widget = null;
 
+  // The widget itself (loader/pinpoint-widget.js) is only downloaded once someone has signed in.
   function loadWidgetScript() {
-    if (ownWidget ? window.PinPointWidget : window.TcPinPoint) return Promise.resolve();
+    if (window.PinPointWidget) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const tag = document.createElement("script");
-      tag.src = `${server}/${ownWidget ? "pinpoint-widget.js" : "widget.js"}`;
+      tag.src = `${server}/pinpoint-widget.js`;
       tag.onload = resolve;
       tag.onerror = () => reject(new Error("Couldn't load the feedback widget."));
       document.head.append(tag);
@@ -281,16 +279,13 @@
 
   async function start(session) {
     await loadWidgetScript();
-    const expired = () => signOut(true, "Your sign-in has expired. Sign in again.");
-    widget = ownWidget
-      ? window.PinPointWidget.init({
-          endpoint: `${server}/api/tcpinpoint`,
-          projectName: site,
-          token: session.token,
-          identity: { name: session.name, email: session.email, role: session.role },
-          onAuthError: expired,
-        })
-      : startSitePingWidget(session, expired);
+    widget = window.PinPointWidget.init({
+      endpoint: `${server}/api/tcpinpoint`,
+      projectName: site,
+      token: session.token,
+      identity: { name: session.name, email: session.email, role: session.role },
+      onAuthError: () => signOut(true, "Your sign-in has expired. Sign in again."),
+    });
     mount();
     ui.replaceChildren(
       h("div", { class: "chip" }, [
@@ -298,22 +293,6 @@
         h("button", { type: "button", text: "Sign out", onclick: () => signOut(true) }),
       ]),
     );
-  }
-
-  function startSitePingWidget(session, expired) {
-    return window.TcPinPoint.initTcPinpoint({
-      endpoint: `${server}/api/tcpinpoint`,
-      projectName: site,
-      headers: { Authorization: `Bearer ${session.token}` },
-      identity: { name: session.name, email: session.email },
-      forceShow: true,
-      enableScreenshot: true,
-      captureDiagnostics: true,
-      deepLink: true,
-      onError: (error) => {
-        if (error?.code === "AUTH" && error.status === 401) expired();
-      },
-    });
   }
 
   async function signOut(showSignIn, message) {

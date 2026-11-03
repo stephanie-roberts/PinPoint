@@ -62,13 +62,12 @@
       "!**/dist/",
       "!**/node_modules/",
       "!**/package-lock.json",
-      "!**/e2e/server.mjs",
       "!apps/pinpoint/data/"
     ]
   },
   "overrides": [
     {
-      "includes": ["**/__tests__/**", "e2e/**"],
+      "includes": ["**/__tests__/**"],
       "linter": {
         "rules": {
           "suspicious": {
