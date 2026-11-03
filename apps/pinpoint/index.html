@@ -5,32 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>Feedback — PinPoint</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%235B3DF5'/%3E%3Cpath d='M12 8.5 L12 23 L15.6 19.8 L18.1 25 L20.7 23.8 L18.2 18.7 L23 18.7 Z' fill='%23fff' stroke='%2315122E' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/src/css/site.css">
     <script type="module" src="/src/js/site.js"></script>
 </head>
 
 <body x-data="inbox" @keydown.window="onKeydown($event)" class="min-h-screen">
 
-    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-[10px] focus:top-[10px] focus:z-[60] focus:bg-yellow focus:px-[14px] focus:py-[10px] focus:text-sm focus:font-bold">Skip to the feedback</a>
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-[10px] focus:top-[10px] focus:z-[60] focus:rounded-full focus:bg-lilac focus:px-[16px] focus:py-[10px] focus:text-sm focus:font-bold">Skip to the feedback</a>
 
-    <header class="sticky top-0 z-30 bg-black text-white">
+    <header class="sticky top-0 z-30 bg-ink text-white">
 
-        <div class="mx-auto flex h-[60px] max-w-[1440px] items-center justify-between gap-[20px] px-[10px] lg:h-[80px] lg:px-[35px]">
+        <div class="wrap flex min-h-[68px] flex-wrap items-center justify-between gap-x-[24px] gap-y-[8px] py-[12px]">
 
-            <a href="./" class="flex items-baseline gap-[10px]">
-                <span class="text-lg font-bold tracking-[-0.01em] md:text-2xl">PinPoint</span>
-                <span class="text-xs uppercase tracking-[0.12em] text-white/60 md:text-sm">Inbox</span>
+            <a href="./" class="flex items-center gap-[12px]">
+                <svg viewBox="0 0 32 32" class="size-[34px]" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#5B3DF5"/><path d="M12 8.5 L12 23 L15.6 19.8 L18.1 25 L20.7 23.8 L18.2 18.7 L23 18.7 Z" fill="#FFFFFF" stroke="#15122E" stroke-width="2" stroke-linejoin="round"/><path d="M9.6 10.2 L7.4 9.4 M10.4 7.2 L9.4 5.2 M13.4 6.4 L13.9 4.3" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span class="font-display text-[22px] font-extrabold tracking-[-0.02em]">PinPoint</span>
+                <span class="rounded-full bg-ink-soft px-[10px] py-[4px] text-xs font-semibold uppercase tracking-[0.12em] text-lilac">Inbox</span>
             </a>
 
-            <div class="flex items-center gap-[18px] md:gap-[30px]" x-show="signedIn" x-cloak>
+            <div class="flex flex-wrap items-center gap-[4px]" x-show="signedIn" x-cloak>
 
-                <nav aria-label="Inbox" class="flex items-center gap-[16px] text-sm md:gap-[24px] md:text-base">
+                <nav aria-label="Inbox" class="flex items-center gap-[4px]">
                     <button type="button" @click="showSnags()" :aria-current="view === 'snags' ? 'page' : null" class="nav-link">Feedback</button>
                     <button type="button" @click="showSites()" :aria-current="view === 'sites' ? 'page' : null" class="nav-link">Sites</button>
                 </nav>
 
-                <span class="hidden text-sm text-white/60 lg:inline" x-text="user?.name"></span>
-                <button type="button" @click="signOut()" class="text-xs text-white/80 transition duration-300 hover:text-yellow md:text-sm">Sign out</button>
+                <span class="mx-[10px] hidden h-[24px] w-px bg-ink-line sm:block" aria-hidden="true"></span>
+                <span class="hidden items-center gap-[10px] text-[15px] text-on-ink lg:flex">
+                    <span class="avatar" aria-hidden="true" x-text="initials(user?.name)"></span>
+                    <span x-text="user?.name"></span>
+                </span>
+                <button type="button" @click="signOut()" class="rounded-full px-[16px] py-[10px] text-[15px] font-medium text-on-ink transition duration-300 hover:text-white">Sign out</button>
 
             </div>
 
@@ -38,470 +44,552 @@
 
     </header>
 
-    <section x-show="!signedIn" x-cloak class="mx-auto mt-[60px] mb-[90px] max-w-[480px] px-[10px] md:mt-[110px] md:px-0">
+    <!-- Sign in -->
+    <section x-show="!signedIn" x-cloak class="mx-auto mb-[90px] mt-[48px] max-w-[520px] px-[16px] md:mt-[96px]">
 
-        <h1 class="page-title page-title-lg">PinPoint</h1>
+        <div class="card p-[28px] md:p-[44px]">
 
-        <form x-show="signInStep === 'details'" @submit.prevent="requestCode()" class="mt-[20px]">
-            <p class="intro">Sign in with your work email. We'll email you a 6-digit code.</p>
+            <svg viewBox="0 0 32 32" class="size-[56px]" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#5B3DF5"/><path d="M12 8.5 L12 23 L15.6 19.8 L18.1 25 L20.7 23.8 L18.2 18.7 L23 18.7 Z" fill="#FFFFFF" stroke="#15122E" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.6 10.2 L7.4 9.4 M10.4 7.2 L9.4 5.2 M13.4 6.4 L13.9 4.3" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <h1 class="page-title mt-[24px]">Sign in</h1>
 
-            <div class="mt-[40px] md:mt-[50px]">
-                <label for="sign-in-name" class="label">Your name</label>
-                <input id="sign-in-name" type="text" x-model="nameDraft" required maxlength="100" autocomplete="name" class="input">
-            </div>
-            <div class="mt-[30px]">
-                <label for="sign-in-email" class="label">Work email</label>
-                <input id="sign-in-email" x-ref="email" type="email" x-model="emailDraft" required autocomplete="email" class="input">
-            </div>
+            <form x-show="signInStep === 'details'" @submit.prevent="requestCode()" class="mt-[16px]">
+                <p class="intro">Use your work email. We'll email you a 6-digit code.</p>
 
-            <p x-show="signInError" role="alert" class="mt-[20px] text-sm text-danger" x-text="signInError"></p>
+                <div class="mt-[32px]">
+                    <label for="sign-in-name" class="field-label">Your name</label>
+                    <input id="sign-in-name" type="text" x-model="nameDraft" required maxlength="100" autocomplete="name" class="input">
+                </div>
+                <div class="mt-[20px]">
+                    <label for="sign-in-email" class="field-label">Work email</label>
+                    <input id="sign-in-email" x-ref="email" type="email" x-model="emailDraft" required autocomplete="email" class="input">
+                </div>
 
-            <button type="submit" class="btn mt-[40px]" :disabled="checking || loading">
-                <span x-text="checking ? 'Sending…' : (loading ? 'Signing in…' : 'Email me a code')"></span>
-            </button>
-        </form>
+                <p x-show="signInError" role="alert" class="mt-[20px] text-sm font-medium text-danger" x-text="signInError"></p>
 
-        <form x-show="signInStep === 'code'" @submit.prevent="verifyCode()" class="mt-[20px]">
+                <button type="submit" class="btn-violet mt-[32px] w-full" :disabled="checking || loading">
+                    <span x-text="checking ? 'Sending…' : (loading ? 'Signing in…' : 'Email me a code')"></span>
+                </button>
+            </form>
 
-            <p class="intro" id="code-help">We've emailed a code to <strong class="text-black" x-text="emailDraft"></strong>. It works for 10 minutes.</p>
+            <form x-show="signInStep === 'code'" @submit.prevent="verifyCode()" class="mt-[16px]">
 
-            <div class="mt-[40px] md:mt-[50px]">
-                <label for="sign-in-code" class="label">6-digit code</label>
-                <input id="sign-in-code" x-ref="code" type="text" x-model="codeDraft" required
-                       inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="code-help"
-                       @input="codeDraft = codeDraft.replace(/\D/g, '').slice(0, 6); if (codeDraft.length === 6) verifyCode()"
-                       class="input text-center text-2xl tracking-[0.4em] md:text-3xl">
-            </div>
+                <p class="intro" id="code-help">We've emailed a code to <strong class="text-ink" x-text="emailDraft"></strong>. It works for 10 minutes.</p>
 
-            <p x-show="signInError" role="alert" class="mt-[20px] text-sm text-danger" x-text="signInError"></p>
+                <div class="mt-[32px]">
+                    <label for="sign-in-code" class="field-label">6-digit code</label>
+                    <input id="sign-in-code" x-ref="code" type="text" x-model="codeDraft" required
+                           inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="code-help"
+                           @input="codeDraft = codeDraft.replace(/\D/g, '').slice(0, 6); if (codeDraft.length === 6) verifyCode()"
+                           class="input input-strong text-center font-display text-3xl font-bold tracking-[0.4em]">
+                </div>
 
-            <div class="mt-[40px] flex flex-wrap items-center gap-[24px]">
-                <button type="submit" class="btn" :disabled="checking || loading">
+                <p x-show="signInError" role="alert" class="mt-[20px] text-sm font-medium text-danger" x-text="signInError"></p>
+
+                <button type="submit" class="btn-violet mt-[32px] w-full" :disabled="checking || loading">
                     <span x-text="checking || loading ? 'Checking…' : 'Sign in'"></span>
                 </button>
-                <button type="button" class="text-link text-grey hover:text-black" @click="useDifferentEmail()">Use a different email</button>
-                <button type="button" class="text-link text-grey hover:text-black" @click="requestCode()" :disabled="checking">Send a new code</button>
-            </div>
-        </form>
+                <div class="mt-[20px] flex flex-wrap items-center justify-center gap-[24px]">
+                    <button type="button" class="text-link text-muted hover:text-ink" @click="useDifferentEmail()">Use a different email</button>
+                    <button type="button" class="text-link text-muted hover:text-ink" @click="requestCode()" :disabled="checking">Send a new code</button>
+                </div>
+            </form>
+
+        </div>
 
     </section>
 
-    <main id="main" x-show="signedIn && view === 'snags'" x-cloak class="mx-auto max-w-[1440px] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)] lg:gap-[40px] lg:px-[35px]">
+    <!-- Feedback -->
+    <main id="main" x-show="signedIn && view === 'snags'" x-cloak class="wrap pb-[90px] pt-[32px] md:pt-[48px]">
 
-        <section aria-labelledby="list-heading" class="pb-[90px]">
-
-            <div class="gutter flex items-end justify-between gap-[20px] pt-[30px] md:pt-[50px]">
+        <div class="flex flex-wrap items-end justify-between gap-[20px]">
+            <div>
                 <h1 id="list-heading" class="page-title">Feedback</h1>
-                <label class="select pb-[4px]" x-show="projects.length > 1">
-                    <select x-model="project" aria-label="Site" class="text-xs font-normal text-grey md:text-sm">
+                <p class="mt-[10px] text-[17px] text-muted" x-show="project">
+                    <span x-text="counts.active === null ? 'Feedback' : (counts.active === 0 ? 'Nothing to sort' : `${counts.active} to sort`)"></span>
+                    on <strong class="text-ink" x-text="project"></strong>
+                </p>
+            </div>
+            <div x-show="projects.length > 1" class="w-full sm:w-auto">
+                <label for="site-picker" class="mb-[6px] block text-[13px] font-semibold text-muted">Site</label>
+                <span class="select-box min-w-[220px]">
+                    <select id="site-picker" x-model="project">
                         <template x-for="p in projects" :key="p.name">
                             <option :value="p.name" x-text="p.name"></option>
                         </template>
                     </select>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2"/></svg>
-                </label>
-                <p class="pb-[4px] text-xs text-grey md:text-sm" x-show="projects.length === 1" x-text="project"></p>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2.4"/></svg>
+                </span>
             </div>
+        </div>
 
-            <fieldset class="tabs gutter mt-[24px] flex gap-[24px] border-b border-line md:mt-[34px] md:gap-[34px]">
-                <legend class="sr-only">Status</legend>
-                <template x-for="t in TABS" :key="t.id">
-                    <button type="button" @click="setTab(t.id)" :aria-pressed="tab === t.id">
-                        <span x-text="t.label"></span><span class="count" x-show="counts[t.id] !== null"><span class="sr-only">, </span><span x-text="counts[t.id]"></span></span>
-                    </button>
-                </template>
-            </fieldset>
+        <div class="mt-[32px] lg:grid lg:grid-cols-[minmax(380px,1fr)_minmax(0,1.35fr)] lg:items-start lg:gap-[28px]">
 
-            <search>
-                <form class="gutter flex items-center justify-between gap-[20px] border-b border-line py-[14px]" @submit.prevent="refresh()">
+            <section aria-labelledby="list-heading" class="min-w-0">
 
-                    <label class="relative flex min-w-0 flex-1 items-center">
-                        <span class="sr-only">Search feedback</span>
-                        <svg class="pointer-events-none absolute left-0 w-[15px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 17 17" fill="none" aria-hidden="true"><ellipse cx="6.36" cy="6.36" rx="6.36" ry="6.36" transform="matrix(-1 0 0 1 13.72 1)" stroke="currentColor" stroke-width="2"/><path d="M12.07 12.07l3.53 3.53" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                        <input id="search" x-ref="search" type="search" x-model="search" @input.debounce.300ms="refresh()" placeholder="Search messages and pages" class="w-full bg-transparent py-[6px] pl-[26px] text-sm outline-none placeholder:text-grey md:text-base">
-                    </label>
-
-                    <label class="flex shrink-0 items-center text-xs md:text-sm">
-                        <span class="mr-[4px]">Show:</span>
-                        <span class="select">
-                            <select x-model="type">
-                                <option value="">All types</option>
-                                <template x-for="(label, value) in TYPES" :key="value">
-                                    <option :value="value" x-text="label"></option>
-                                </template>
-                            </select>
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2"/></svg>
-                        </span>
-                    </label>
-
-                </form>
-            </search>
-
-            <div x-show="loading && !items.length" aria-hidden="true">
-                <template x-for="i in 5" :key="i">
-                    <div class="border-b border-line px-[10px] py-[22px] md:px-[35px] lg:px-[20px]">
-                        <div class="h-[10px] w-[90px] animate-pulse bg-mist"></div>
-                        <div class="mt-[12px] h-[14px] w-[70%] animate-pulse bg-mist"></div>
-                        <div class="mt-[10px] h-[10px] w-[40%] animate-pulse bg-mist"></div>
-                    </div>
-                </template>
-            </div>
-
-            <div x-show="!loading && !items.length" class="gutter py-[60px] md:py-[90px]">
-                <p class="title" x-text="filtersActive ? 'Nothing matches those filters.' : (tab === 'active' ? 'All caught up.' : 'No feedback here yet.')"></p>
-                <p class="mt-[10px] text-sm text-grey md:text-lg" x-show="!filtersActive && tab === 'active'">New feedback will show up here.</p>
-                <button type="button" x-show="filtersActive" @click="clearFilters()" class="arrow-link mt-[24px]">Clear filters</button>
-            </div>
-
-            <ul x-show="items.length" :aria-busy="loading">
-                <template x-for="item in items" :key="item.id">
-                    <li>
-                        <button type="button" class="row" :id="`row-${item.id}`" @click="open(item.id)" :aria-current="selectedId === item.id">
-
-                            <span class="flex items-center gap-[10px] text-xs">
-                                <span class="inline-flex items-center gap-[6px] font-bold">
-                                    <span class="dot" :class="`bg-${item.type}`" aria-hidden="true"></span>
-                                    <span x-text="TYPES[item.type]"></span>
-                                </span>
-                                <span class="text-grey" x-show="tab !== 'active' || item.status === 'in_progress'" x-text="STATUSES[item.status]"></span>
-                                <time class="ml-auto shrink-0 text-grey" :datetime="item.createdAt" :title="formatDate(item.createdAt)" x-text="relativeTime(item.createdAt)"></time>
-                            </span>
-
-                            <span class="mt-[8px] line-clamp-2 block text-sm/[1.4] font-medium md:text-lg/[1.3]" x-text="item.message"></span>
-
-                            <span class="mt-[8px] flex min-w-0 items-center gap-[12px] text-xs text-grey">
-                                <span class="shrink-0" x-text="item.authorName"></span>
-                                <span class="truncate" x-text="pagePath(item)"></span>
-                                <span class="ml-auto inline-flex shrink-0 items-center gap-[4px]" x-show="item.comments?.length">
-                                    <svg class="w-[12px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3h12v8H6l-4 3V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-                                    <span x-text="item.comments?.length"></span><span class="sr-only">replies</span>
-                                </span>
-                            </span>
-
+                <fieldset class="tabs">
+                    <legend class="sr-only">Status</legend>
+                    <template x-for="t in TABS" :key="t.id">
+                        <button type="button" @click="setTab(t.id)" :aria-pressed="tab === t.id">
+                            <span x-text="t.label"></span><span class="count" x-show="counts[t.id] !== null"><span class="sr-only">, </span><span x-text="counts[t.id]"></span></span>
                         </button>
-                    </li>
-                </template>
-            </ul>
+                    </template>
+                </fieldset>
 
-            <div x-show="hasMore" class="gutter pt-[40px]">
-                <button type="button" class="btn-outline" @click="loadMore()" :disabled="loadingMore">
-                    <span x-text="loadingMore ? 'Loading…' : `Show more (${total - items.length} left)`"></span>
-                </button>
-            </div>
+                <search>
+                    <form class="mt-[16px] flex flex-wrap gap-[10px]" @submit.prevent="refresh()">
 
-            <p class="keys gutter mt-[40px] hidden text-xs text-grey md:block">
-                <kbd>j</kbd> / <kbd>k</kbd> to move,
-                <kbd>/</kbd> to search,
-                <kbd>Esc</kbd> to close
-            </p>
+                        <label class="box min-w-0 flex-[1_1_240px] gap-[10px]">
+                            <span class="sr-only">Search feedback</span>
+                            <svg class="w-[18px] shrink-0 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                            <input id="search" x-ref="search" type="search" x-model="search" @input.debounce.300ms="refresh()" placeholder="Search messages and pages" class="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-subtle">
+                        </label>
 
-        </section>
-
-        <aside aria-labelledby="detail-heading"
-               class="fixed inset-0 z-40 overflow-y-auto bg-white lg:sticky lg:inset-auto lg:top-[100px] lg:z-auto lg:mt-[50px] lg:block lg:max-h-[calc(100vh-120px)] lg:border lg:border-line"
-               :class="selected ? 'block' : 'hidden'"
-               x-cloak>
-
-            <div x-show="!selected" class="flex h-full min-h-[320px] items-center justify-center p-[40px] text-center">
-                <p class="max-w-[260px] text-sm text-grey">Choose some feedback to see the details, screenshot and replies.</p>
-            </div>
-
-            <template x-if="selected">
-                <div>
-
-                    <div class="sticky top-0 z-10 flex items-center justify-between gap-[12px] border-b border-line bg-white px-[10px] py-[12px] md:px-[35px] lg:px-[30px]">
-                        <button type="button" @click="close()" class="inline-flex items-center gap-[8px] text-sm font-medium transition duration-300 hover:text-grey">
-                            <svg class="w-[16px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2"/></svg>
-                            <span class="lg:hidden">Back to list</span><span class="hidden lg:inline">Close</span>
-                        </button>
-                        <div class="flex items-center gap-[4px]">
-                            <button type="button" @click="move(-1)" :disabled="selectedIndex <= 0" class="icon-btn" aria-label="Previous">
-                                <svg class="w-[14px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 10l5-5 5 5" stroke="currentColor" stroke-width="2"/></svg>
-                            </button>
-                            <button type="button" @click="move(1)" :disabled="selectedIndex >= items.length - 1" class="icon-btn" aria-label="Next">
-                                <svg class="w-[14px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="px-[10px] pb-[60px] pt-[26px] md:px-[35px] lg:px-[30px]">
-
-                        <p class="flex flex-wrap items-center gap-[10px] text-xs">
-                            <span class="inline-flex items-center gap-[6px] font-bold">
-                                <span class="dot" :class="`bg-${selected.type}`" aria-hidden="true"></span>
-                                <span x-text="TYPES[selected.type]"></span>
-                            </span>
-                            <span class="text-grey" x-text="`${selected.authorName}${selected.authorEmail ? ' · ' + selected.authorEmail : ''}`"></span>
-                        </p>
-
-                        <h2 id="detail-heading" x-ref="drawerHeading" tabindex="-1" class="mt-[12px] whitespace-pre-line text-lg/[1.35] font-medium outline-none md:text-2xl/[1.3]" x-text="selected.message">Feedback</h2>
-
-                        <p class="mt-[12px] text-xs text-grey">
-                            <time :datetime="selected.createdAt" x-text="formatDate(selected.createdAt)"></time>
-                        </p>
-
-                        <div class="mt-[24px] flex flex-wrap items-center gap-x-[24px] gap-y-[12px]">
-                            <!-- biome-ignore lint/a11y/useValidAnchor: Alpine sets the href from the feedback's page -->
-                            <a :href="pageLink(selected)" x-show="pageLink(selected)" target="_blank" rel="noopener" class="arrow-link">
-                                Open on page
-                                <svg class="w-[14px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3h8v8M13 3L3 13" stroke="currentColor" stroke-width="1.8"/></svg>
-                                <span class="sr-only">(opens in a new tab)</span>
-                            </a>
-                            <button type="button" x-show="pageLink(selected)" @click="copyLink()" class="text-link text-grey hover:text-black">Copy link</button>
-                        </div>
-
-                        <fieldset class="mt-[34px]" :disabled="!can('canChangeStatus')">
-                            <legend class="label">Status</legend>
-                            <div class="grid grid-cols-2 gap-[8px] sm:grid-cols-4">
-                                <template x-for="(label, value) in STATUSES" :key="value">
-                                    <button type="button" @click="setStatus(value)" :aria-pressed="selected.status === value"
-                                            class="flex h-[40px] items-center justify-center gap-[6px] rounded-full border text-xs font-medium transition duration-300 disabled:cursor-not-allowed disabled:opacity-50"
-                                            :class="selected.status === value ? 'border-black bg-black text-white' : 'border-line hover:border-black'">
-                                        <span class="dot" :class="STATUS_DOTS[value]" aria-hidden="true"></span>
-                                        <span x-text="label"></span>
-                                    </button>
-                                </template>
-                            </div>
-                            <p x-show="!can('canChangeStatus')" class="hint">You can't change the status.</p>
-                        </fieldset>
-
-                        <div class="mt-[34px]">
-                            <label for="assignee" class="label">Assigned to</label>
-                            <span class="select" x-show="assignees.length">
-                                <select id="assignee" @change="assign($event.target.value)" :disabled="assigning">
-                                    <option value="" :selected="!assignments[selected.id]">Nobody</option>
-                                    <template x-for="email in assignees" :key="email">
-                                        <option :value="email" :selected="assignments[selected.id] === email" x-text="personLabel(email)"></option>
+                        <label class="box gap-[8px] text-sm text-muted">
+                            <span>Show</span>
+                            <span class="select">
+                                <select x-model="type">
+                                    <option value="">All types</option>
+                                    <template x-for="(label, value) in TYPES" :key="value">
+                                        <option :value="value" x-text="label"></option>
                                     </template>
                                 </select>
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2.4"/></svg>
                             </span>
-                            <p x-show="!assignees.length" class="text-sm text-grey">Add your team to this site's Notify list on the Sites screen to assign its feedback.</p>
+                        </label>
+
+                    </form>
+                </search>
+
+                <div x-show="loading && !items.length" aria-hidden="true" class="mt-[16px] space-y-[10px]">
+                    <template x-for="i in 4" :key="i">
+                        <div class="flex gap-[16px] rounded-[16px] bg-white p-[18px] shadow-[0_0_0_1px_var(--color-line)]">
+                            <div class="h-[56px] w-[72px] animate-pulse rounded-[10px] bg-paper"></div>
+                            <div class="flex-1">
+                                <div class="h-[18px] w-[60px] animate-pulse rounded-full bg-paper"></div>
+                                <div class="mt-[10px] h-[14px] w-[70%] animate-pulse rounded bg-paper"></div>
+                                <div class="mt-[10px] h-[10px] w-[40%] animate-pulse rounded bg-paper"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div x-show="!loading && !items.length" class="card mt-[16px] px-[24px] py-[48px] text-center md:py-[64px]">
+                    <p class="title" x-text="filtersActive ? 'Nothing matches those filters.' : (tab === 'active' ? 'All caught up.' : 'No feedback here yet.')"></p>
+                    <p class="mt-[10px] text-base text-muted" x-show="!filtersActive && tab === 'active'">New feedback will show up here.</p>
+                    <button type="button" x-show="filtersActive" @click="clearFilters()" class="btn-outline mt-[24px]">Clear filters</button>
+                </div>
+
+                <ul x-show="items.length" :aria-busy="loading" class="mt-[16px] space-y-[10px]">
+                    <template x-for="item in items" :key="item.id">
+                        <li class="relative">
+                            <button type="button" class="row" :class="can('canDelete', item) ? 'pr-[64px] md:pr-[68px]' : ''" :id="`row-${item.id}`" @click="open(item.id)" :aria-current="selectedId === item.id">
+
+                                <span class="relative h-[56px] w-[72px] shrink-0 overflow-hidden rounded-[10px] border border-line bg-paper" aria-hidden="true">
+                                    <template x-if="screenshot(item)">
+                                        <img :src="screenshot(item)" alt="" class="size-full object-cover">
+                                    </template>
+                                    <template x-if="!screenshot(item)">
+                                        <span>
+                                            <span class="absolute left-[8px] top-[8px] h-[6px] w-[30px] rounded-full bg-line-strong"></span>
+                                            <span class="absolute left-[8px] top-[20px] h-[26px] w-[24px] rounded-[4px] bg-lilac"></span>
+                                            <span class="absolute left-[36px] top-[26px] h-[16px] w-[28px] rounded-[3px] border-2 border-violet"></span>
+                                        </span>
+                                    </template>
+                                </span>
+
+                                <span class="flex min-w-0 flex-1 flex-col gap-[6px]">
+                                    <span class="flex items-center gap-[10px]">
+                                        <span class="chip" :class="`chip-${item.type}`" x-text="TYPES[item.type]"></span>
+                                        <span class="text-[13px] font-medium text-subtle" x-show="tab !== 'active' || item.status === 'in_progress'" x-text="STATUSES[item.status]"></span>
+                                        <time class="ml-auto shrink-0 text-[13px] text-subtle" :datetime="item.createdAt" :title="formatDate(item.createdAt)" x-text="relativeTime(item.createdAt)"></time>
+                                    </span>
+
+                                    <span class="line-clamp-2 block text-base/[1.35] font-semibold md:text-lg/[1.35]" x-text="item.message"></span>
+
+                                    <span class="flex min-w-0 items-center gap-[8px] text-sm text-subtle">
+                                        <span class="shrink-0" x-text="item.authorName"></span>
+                                        <span aria-hidden="true">·</span>
+                                        <span class="truncate" x-text="pagePath(item)"></span>
+                                        <span class="ml-auto inline-flex shrink-0 items-center gap-[4px]" x-show="item.comments?.length">
+                                            <svg class="w-[14px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+                                            <span x-text="item.comments?.length"></span><span class="sr-only">replies</span>
+                                        </span>
+                                    </span>
+                                </span>
+
+                            </button>
+
+                            <button type="button" :id="`bin-${item.id}`" x-show="can('canDelete', item) && confirmingRowDelete !== item.id" @click="askToDelete(item)"
+                                    class="absolute right-[12px] top-1/2 grid size-[44px] -translate-y-1/2 place-items-center rounded-full text-subtle transition duration-300 hover:bg-[#FDE2E4] hover:text-danger">
+                                <svg class="w-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>
+                                <span class="sr-only" x-text="`Delete: ${item.message}`"></span>
+                            </button>
+
+                            <fieldset x-show="confirmingRowDelete === item.id" @keydown.escape.stop="cancelRowDelete(item)"
+                                      class="absolute inset-0 z-10 flex flex-wrap items-center justify-end gap-[10px] rounded-[16px] border-2 border-danger bg-white px-[18px] py-[12px]">
+                                <legend class="sr-only" x-text="`Delete ${item.message}?`"></legend>
+                                <p class="min-w-0 flex-1 text-[15px] font-semibold">Delete this feedback?<span class="block text-sm font-normal text-muted">This can't be undone.</span></p>
+                                <span class="flex shrink-0 gap-[8px]">
+                                    <button type="button" :id="`confirm-delete-${item.id}`" class="btn-danger h-[44px] px-[18px]" @click="deleteItem(item)">Delete</button>
+                                    <button type="button" class="btn-outline h-[44px] px-[16px]" @click="cancelRowDelete(item)">Cancel</button>
+                                </span>
+                            </fieldset>
+                        </li>
+                    </template>
+                </ul>
+
+                <div x-show="hasMore" class="pt-[24px]">
+                    <button type="button" class="btn-outline" @click="loadMore()" :disabled="loadingMore">
+                        <span x-text="loadingMore ? 'Loading…' : `Show more (${total - items.length} left)`"></span>
+                    </button>
+                </div>
+
+                <p class="keys mt-[24px] hidden text-[13px] text-subtle md:block">
+                    <kbd>j</kbd> <kbd>k</kbd> to move,
+                    <kbd>/</kbd> to search,
+                    <kbd>Esc</kbd> to close
+                </p>
+
+            </section>
+
+            <aside aria-labelledby="detail-heading"
+                   class="card fixed inset-0 z-40 overflow-y-auto rounded-none border-0 lg:sticky lg:inset-auto lg:top-[100px] lg:z-auto lg:block lg:max-h-[calc(100vh-124px)] lg:rounded-[24px] lg:border"
+                   :class="selected ? 'block' : 'hidden'"
+                   x-cloak>
+
+                <div x-show="!selected" class="flex h-full min-h-[360px] flex-col items-center justify-center gap-[16px] p-[40px] text-center">
+                    <svg viewBox="0 0 24 24" class="size-[48px]" aria-hidden="true"><path d="M5 3 L5 19 L9 15.4 L11.8 21.4 L14.8 20 L12 14.2 L17.6 14.2 Z" fill="#DCD5FF" stroke="#15122E" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                    <p class="max-w-[280px] text-base text-muted">Choose some feedback to see the details, screenshot and replies.</p>
+                </div>
+
+                <template x-if="selected">
+                    <div>
+
+                        <div class="sticky top-0 z-10 flex items-center justify-between gap-[12px] border-b border-line bg-white px-[16px] py-[10px] md:px-[28px]">
+                            <button type="button" @click="close()" class="inline-flex items-center gap-[8px] py-[8px] text-[15px] font-semibold transition duration-300 hover:text-violet-dark">
+                                <svg class="w-[16px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="2"/></svg>
+                                <span class="lg:hidden">Back to list</span><span class="hidden lg:inline">Close</span>
+                            </button>
+                            <div class="flex items-center gap-[4px]">
+                                <button type="button" @click="move(-1)" :disabled="selectedIndex <= 0" class="icon-btn" aria-label="Previous">
+                                    <svg class="w-[14px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 10l5-5 5 5" stroke="currentColor" stroke-width="2"/></svg>
+                                </button>
+                                <button type="button" @click="move(1)" :disabled="selectedIndex >= items.length - 1" class="icon-btn" aria-label="Next">
+                                    <svg class="w-[14px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="2"/></svg>
+                                </button>
+                            </div>
                         </div>
 
-                        <figure class="mt-[34px]" x-show="screenshot(selected)">
-                            <figcaption class="label">Screenshot</figcaption>
-                            <button type="button" @click="zoomed = true" class="group relative block w-full overflow-hidden border border-line bg-mist" aria-label="Enlarge the screenshot">
-                                <img :src="screenshot(selected)" alt="" class="block w-full">
-                                <span class="absolute border-2 border-yellow shadow-[0_0_0_9999px_rgba(10,10,10,0.25)]" :style="regionStyle(selected)" aria-hidden="true"></span>
-                            </button>
-                        </figure>
+                        <div class="flex flex-wrap items-start justify-between gap-[16px] border-b border-line px-[16px] py-[24px] md:px-[28px]">
+                            <div class="min-w-0 flex-[1_1_280px]">
+                                <p class="flex flex-wrap items-center gap-[10px]">
+                                    <span class="chip" :class="`chip-${selected.type}`" x-text="TYPES[selected.type]"></span>
+                                    <span class="inline-flex items-center gap-[6px] text-[13px] font-semibold text-muted">
+                                        <span class="dot" :class="STATUS_DOTS[selected.status]" aria-hidden="true"></span>
+                                        <span x-text="STATUSES[selected.status]"></span>
+                                    </span>
+                                </p>
+                                <h2 id="detail-heading" x-ref="drawerHeading" tabindex="-1" class="mt-[12px] whitespace-pre-line font-display text-[1.5rem]/[1.2] font-bold tracking-[-0.02em] outline-none md:text-[1.875rem]/[1.15]" x-text="selected.message">Feedback</h2>
+                                <p class="mt-[10px] text-sm text-subtle">
+                                    <time :datetime="selected.createdAt" x-text="formatDate(selected.createdAt)"></time>
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-[10px]">
+                                <!-- biome-ignore lint/a11y/useValidAnchor: Alpine sets the href from the feedback's page -->
+                                <a :href="pageLink(selected)" x-show="pageLink(selected)" target="_blank" rel="noopener" class="btn-outline">
+                                    <svg class="w-[16px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                                    Open on page
+                                    <span class="sr-only">(opens in a new tab)</span>
+                                </a>
+                                <button type="button" class="btn" x-show="!isClosed && can('canChangeStatus')" @click="markDone()">
+                                    <svg class="w-[16px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                                    Mark as done
+                                </button>
+                            </div>
+                        </div>
 
-                        <div class="mt-[34px]">
-                            <h3 class="label">Details</h3>
-                            <dl class="meta grid grid-cols-1 gap-x-[24px] sm:grid-cols-2">
-                                <div class="sm:col-span-2">
+                        <div class="space-y-[28px] px-[16px] pb-[48px] pt-[24px] md:px-[28px]">
+
+                            <figure x-show="screenshot(selected)">
+                                <figcaption class="sr-only">Screenshot</figcaption>
+                                <button type="button" @click="zoomed = true" class="group relative block w-full overflow-hidden rounded-[16px] border border-line bg-paper" aria-label="Enlarge the screenshot">
+                                    <img :src="screenshot(selected)" alt="" class="block w-full">
+                                    <span class="absolute rounded-[6px] border-[3px] border-violet bg-violet/10" :style="regionStyle(selected)" aria-hidden="true"></span>
+                                </button>
+                            </figure>
+
+                            <dl class="meta grid grid-cols-1 gap-[12px] sm:grid-cols-2">
+                                <div class="rounded-[12px] bg-paper px-[16px] py-[14px]">
+                                    <dt>From</dt>
+                                    <dd x-text="`${selected.authorName}${selected.authorEmail ? ' · ' + selected.authorEmail : ''}`"></dd>
+                                </div>
+                                <div class="rounded-[12px] bg-paper px-[16px] py-[14px]">
                                     <dt>Page</dt>
                                     <dd x-text="pagePath(selected)"></dd>
                                 </div>
-                                <div>
+                                <div class="rounded-[12px] bg-paper px-[16px] py-[14px]">
                                     <dt>Browser</dt>
                                     <dd x-text="shortBrowser(selected.userAgent)" :title="selected.userAgent"></dd>
                                 </div>
-                                <div>
+                                <div class="rounded-[12px] bg-paper px-[16px] py-[14px]">
                                     <dt>Screen size</dt>
                                     <dd x-text="selected.viewport"></dd>
                                 </div>
-                                <div class="sm:col-span-2" x-show="selected.annotations?.length">
+                                <div class="rounded-[12px] bg-paper px-[16px] py-[14px] sm:col-span-2" x-show="selected.annotations?.length">
                                     <dt>Element</dt>
-                                    <dd class="font-mono text-xs" x-text="selected.annotations?.[0]?.cssSelector"></dd>
+                                    <dd class="font-mono text-[13px] font-medium" x-text="selected.annotations?.[0]?.cssSelector"></dd>
                                 </div>
                             </dl>
-                        </div>
 
-                        <details class="group mt-[10px] border-y border-line" x-show="diagnosticsCount(selected)">
-                            <summary class="flex cursor-pointer list-none items-center justify-between py-[16px] text-sm font-medium">
-                                <span>Console and network <span class="text-grey" x-text="`(${diagnosticsCount(selected)})`"></span></span>
-                                <svg class="w-[12px] transition duration-300 group-open:rotate-180" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2"/></svg>
-                            </summary>
-                            <ul class="space-y-[10px] pb-[18px] font-mono text-xs">
-                                <template x-for="(entry, i) in selected.diagnostics?.console ?? []" :key="`c${i}`">
-                                    <li class="break-words border-l-2 pl-[10px]" :class="entry.level === 'error' ? 'border-danger' : 'border-change'">
-                                        <span class="font-bold uppercase" x-text="entry.level"></span>
-                                        <span x-text="entry.message"></span>
-                                    </li>
-                                </template>
-                                <template x-for="(entry, i) in selected.diagnostics?.network ?? []" :key="`n${i}`">
-                                    <li class="break-words border-l-2 border-danger pl-[10px]">
-                                        <span class="font-bold" x-text="`${entry.method} ${entry.status || 'failed'}`"></span>
-                                        <span x-text="entry.url"></span>
-                                        <span class="text-grey" x-text="`${Math.round(entry.durationMs)} ms`"></span>
-                                    </li>
-                                </template>
-                            </ul>
-                        </details>
+                            <p x-show="pageLink(selected)" class="-mt-[12px]">
+                                <button type="button" @click="copyLink()" class="text-link text-muted hover:text-ink">Copy link to the page</button>
+                            </p>
 
-                        <section class="mt-[34px]" x-show="capabilities.comments || selected.comments?.length" aria-labelledby="thread-heading">
-                            <h3 id="thread-heading" class="label">Replies</h3>
+                            <div class="grid gap-[24px] md:grid-cols-2">
+                                <fieldset :disabled="!can('canChangeStatus')">
+                                    <legend class="label">Status</legend>
+                                    <div class="grid grid-cols-2 gap-[8px]">
+                                        <template x-for="(label, value) in STATUSES" :key="value">
+                                            <button type="button" @click="setStatus(value)" :aria-pressed="selected.status === value"
+                                                    class="flex h-[44px] items-center justify-center gap-[8px] rounded-full border text-sm font-semibold transition duration-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    :class="selected.status === value ? 'border-ink bg-ink text-white' : 'border-line bg-white hover:border-ink'">
+                                                <span class="dot" :class="STATUS_DOTS[value]" aria-hidden="true"></span>
+                                                <span x-text="label"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                    <p x-show="!can('canChangeStatus')" class="hint">You can't change the status.</p>
+                                </fieldset>
 
-                            <p class="text-sm text-grey" x-show="!selected.comments?.length">No replies yet. Your client sees replies in the widget on their page.</p>
-
-                            <ol class="space-y-[12px]">
-                                <template x-for="comment in selected.comments ?? []" :key="comment.id">
-                                    <li class="rounded-[14px] px-[16px] py-[14px]" :class="comment.authorRole === 'team' ? 'ml-[30px] bg-black text-white' : 'mr-[30px] bg-mist'">
-                                        <p class="flex items-center gap-[8px] text-xs" :class="comment.authorRole === 'team' ? 'text-white/70' : 'text-grey'">
-                                            <span class="font-bold" :class="comment.authorRole === 'team' ? 'text-white' : 'text-black'" x-text="comment.authorName"></span>
-                                            <time :datetime="comment.createdAt" :title="formatDate(comment.createdAt)" x-text="relativeTime(comment.createdAt)"></time>
-                                            <button type="button" class="ml-auto underline-offset-2 hover:underline" x-show="capabilities.deleteComments && can('canDeleteComment')" @click="deleteComment(comment)">Delete<span class="sr-only"> this reply</span></button>
-                                        </p>
-                                        <p class="mt-[6px] whitespace-pre-line break-words text-sm/[1.45]" x-text="comment.body"></p>
-                                    </li>
-                                </template>
-                            </ol>
-
-                            <form class="mt-[20px]" x-show="capabilities.comments && can('canComment')" @submit.prevent="sendReply()">
-                                <label for="reply" class="sr-only">Reply</label>
-                                <textarea id="reply" x-model="reply" rows="3" maxlength="5000" placeholder="Reply to your client…"
-                                          @keydown.meta.enter.prevent="sendReply()" @keydown.ctrl.enter.prevent="sendReply()"
-                                          class="block w-full resize-y border border-line p-[14px] text-sm/[1.45] outline-none transition duration-300 placeholder:text-grey focus:border-black"></textarea>
-                                <div class="mt-[12px] flex items-center justify-between gap-[12px]">
-                                    <span class="text-xs text-grey" x-text="`Posting as ${user?.name ?? 'you'}`"></span>
-                                    <button type="submit" class="btn" :disabled="sending || !reply.trim()">
-                                        <span x-text="sending ? 'Sending…' : 'Send reply'"></span>
-                                    </button>
+                                <div>
+                                    <label for="assignee" class="label">Assigned to</label>
+                                    <span class="select-box" x-show="assignees.length">
+                                        <select id="assignee" @change="assign($event.target.value)" :disabled="assigning">
+                                            <option value="" :selected="!assignments[selected.id]">Nobody</option>
+                                            <template x-for="email in assignees" :key="email">
+                                                <option :value="email" :selected="assignments[selected.id] === email" x-text="personLabel(email)"></option>
+                                            </template>
+                                        </select>
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2.4"/></svg>
+                                    </span>
+                                    <p x-show="!assignees.length" class="text-sm text-muted">Add your team to this site's Notify list on the Sites screen to assign its feedback.</p>
                                 </div>
-                            </form>
-                        </section>
+                            </div>
 
-                        <div class="mt-[50px] border-t border-line pt-[24px]" x-show="can('canDelete')">
-                            <button type="button" x-show="!confirmingDelete" @click="confirmingDelete = true; $nextTick(() => $refs.confirmDelete.focus())" class="text-link text-danger">Delete this feedback</button>
-                            <fieldset x-show="confirmingDelete" class="flex flex-wrap items-center gap-[12px]">
-                                <legend class="mb-[12px] w-full text-sm">Delete it for good? This can't be undone.</legend>
-                                <button type="button" x-ref="confirmDelete" class="btn-danger" @click="deleteSelected()">Delete</button>
-                                <button type="button" class="btn-outline" @click="confirmingDelete = false">Cancel</button>
-                            </fieldset>
+                            <details class="group rounded-[16px] border border-line" x-show="diagnosticsCount(selected)">
+                                <summary class="flex cursor-pointer list-none items-center justify-between px-[18px] py-[16px] text-[15px] font-semibold">
+                                    <span>Console and network <span class="text-subtle" x-text="`(${diagnosticsCount(selected)})`"></span></span>
+                                    <svg class="w-[12px] transition duration-300 group-open:rotate-180" viewBox="0 0 22 13" fill="none" aria-hidden="true"><path d="M20.707.707l-10 10-10-10" stroke="currentColor" stroke-width="2"/></svg>
+                                </summary>
+                                <ul class="space-y-[10px] px-[18px] pb-[18px] font-mono text-xs">
+                                    <template x-for="(entry, i) in selected.diagnostics?.console ?? []" :key="`c${i}`">
+                                        <li class="break-words border-l-2 pl-[10px]" :class="entry.level === 'error' ? 'border-danger' : 'border-change'">
+                                            <span class="font-bold uppercase" x-text="entry.level"></span>
+                                            <span x-text="entry.message"></span>
+                                        </li>
+                                    </template>
+                                    <template x-for="(entry, i) in selected.diagnostics?.network ?? []" :key="`n${i}`">
+                                        <li class="break-words border-l-2 border-danger pl-[10px]">
+                                            <span class="font-bold" x-text="`${entry.method} ${entry.status || 'failed'}`"></span>
+                                            <span x-text="entry.url"></span>
+                                            <span class="text-subtle" x-text="`${Math.round(entry.durationMs)} ms`"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </details>
+
+                            <section x-show="capabilities.comments || selected.comments?.length" aria-labelledby="thread-heading">
+                                <h3 id="thread-heading" class="text-base font-semibold">Replies</h3>
+
+                                <p class="mt-[8px] text-[15px] text-muted" x-show="!selected.comments?.length">No replies yet. Your client sees replies in the widget on their page.</p>
+
+                                <ol class="mt-[14px] space-y-[12px]">
+                                    <template x-for="comment in selected.comments ?? []" :key="comment.id">
+                                        <li class="flex items-start gap-[12px]" :class="comment.authorRole === 'team' ? 'flex-row-reverse' : ''">
+                                            <span class="avatar size-[36px]" aria-hidden="true" :class="comment.authorRole === 'team' ? 'bg-violet text-white' : ''" x-text="initials(comment.authorName)"></span>
+                                            <div class="min-w-0 max-w-[85%] rounded-[16px] px-[16px] py-[12px]" :class="comment.authorRole === 'team' ? 'bg-ink text-white' : 'bg-paper'">
+                                                <p class="flex flex-wrap items-center gap-[8px] text-[13px]" :class="comment.authorRole === 'team' ? 'text-on-ink' : 'text-subtle'">
+                                                    <span class="font-bold" :class="comment.authorRole === 'team' ? 'text-white' : 'text-ink'" x-text="comment.authorName"></span>
+                                                    <time :datetime="comment.createdAt" :title="formatDate(comment.createdAt)" x-text="relativeTime(comment.createdAt)"></time>
+                                                    <button type="button" class="ml-auto underline-offset-2 hover:underline" x-show="capabilities.deleteComments && can('canDeleteComment')" @click="deleteComment(comment)">Delete<span class="sr-only"> this reply</span></button>
+                                                </p>
+                                                <p class="mt-[4px] whitespace-pre-line break-words text-[15px]/[1.5]" x-text="comment.body"></p>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ol>
+
+                                <form class="mt-[16px] flex items-start gap-[12px]" x-show="capabilities.comments && can('canComment')" @submit.prevent="sendReply()">
+                                    <span class="avatar size-[36px]" aria-hidden="true" x-text="initials(user?.name)"></span>
+                                    <div class="min-w-0 flex-1">
+                                        <label for="reply" class="sr-only">Reply</label>
+                                        <textarea id="reply" x-model="reply" rows="3" maxlength="5000" placeholder="Write a reply. The client is emailed when you send it."
+                                                  @keydown.meta.enter.prevent="sendReply()" @keydown.ctrl.enter.prevent="sendReply()"
+                                                  class="input resize-y text-[15px]/[1.5]"></textarea>
+                                        <div class="mt-[10px] flex items-center justify-between gap-[12px]">
+                                            <span class="text-[13px] text-subtle" x-text="`Posting as ${user?.name ?? 'you'}`"></span>
+                                            <button type="submit" class="btn-violet" :disabled="sending || !reply.trim()">
+                                                <span x-text="sending ? 'Sending…' : 'Send reply'"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </section>
+
+                            <div class="border-t border-line pt-[24px]" x-show="can('canDelete')">
+                                <button type="button" x-show="!confirmingDelete" @click="confirmingDelete = true; $nextTick(() => $refs.confirmDelete.focus())" class="text-link text-danger">Delete this feedback</button>
+                                <fieldset x-show="confirmingDelete" class="flex flex-wrap items-center gap-[12px] rounded-[16px] bg-paper p-[16px]">
+                                    <legend class="float-left mb-[8px] w-full text-[15px]">Delete it for good? This can't be undone.</legend>
+                                    <button type="button" x-ref="confirmDelete" class="btn-danger" @click="deleteSelected()">Delete</button>
+                                    <button type="button" class="btn-outline" @click="confirmingDelete = false">Cancel</button>
+                                </fieldset>
+                            </div>
+
                         </div>
 
                     </div>
+                </template>
 
-                </div>
-            </template>
+            </aside>
 
-        </aside>
+        </div>
 
     </main>
 
-    <section x-show="signedIn && view === 'sites'" x-cloak aria-labelledby="sites-heading" class="gutter mx-auto max-w-[1440px] pb-[90px] pt-[30px] md:pt-[50px]">
+    <!-- Sites -->
+    <section x-show="signedIn && view === 'sites'" x-cloak aria-labelledby="sites-heading" class="mx-auto max-w-[1120px] px-[16px] pb-[96px] pt-[32px] md:px-[32px] md:pt-[48px]">
 
-        <div class="flex flex-wrap items-end justify-between gap-[20px]">
-            <h1 id="sites-heading" class="page-title">Sites</h1>
-            <button type="button" class="btn" x-show="!siteForm.open" @click="openSiteForm()">Add a site</button>
+        <div class="flex flex-wrap items-end justify-between gap-[24px]">
+            <div class="max-w-[640px]">
+                <h1 id="sites-heading" class="page-title">Sites</h1>
+                <p class="intro mt-[14px]">Add each website you want feedback on and the clients who'll review it. Paste the snippet before <code class="rounded-[6px] border border-line bg-white px-[6px] py-[1px] font-mono text-[15px] text-ink">&lt;/body&gt;</code>, then send your clients the feedback link. They sign in with a code emailed to them. Your team can leave feedback on every site.</p>
+            </div>
+            <button type="button" class="btn" x-show="!siteForm.open" @click="openSiteForm()">
+                <svg class="w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                Add a site
+            </button>
         </div>
-        <p class="intro mt-[20px] max-w-[680px]">Add each website you want feedback on and the clients who'll review it. Paste the site's snippet before <code class="text-black">&lt;/body&gt;</code>, then send your clients the feedback link. They sign in with a code emailed to them; your team can leave feedback on every site.</p>
 
-        <form x-show="siteForm.open" @submit.prevent="saveSite()" @keydown.escape.stop="closeSiteForm()" class="mt-[40px] border border-line p-[20px] md:p-[34px]">
+        <form x-show="siteForm.open" @submit.prevent="saveSite()" @keydown.escape.stop="closeSiteForm()" class="card mt-[36px] p-[24px] md:p-[36px]">
             <h2 class="title" x-text="siteForm.editing ? `Edit ${siteForm.name}` : 'Add a site'">Add a site</h2>
+            <p class="mt-[6px] text-base text-muted" x-show="!siteForm.editing">You'll get its snippet and client link as soon as it's added.</p>
 
-            <div class="mt-[24px] grid gap-[30px] md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] md:gap-[40px]">
+            <div class="mt-[28px] grid gap-[24px] md:grid-cols-2">
                 <div>
-                    <label for="site-name" class="label">Name</label>
+                    <label for="site-name" class="field-label">Name</label>
                     <input id="site-name" x-ref="siteName" type="text" x-model="siteForm.name" :readonly="siteForm.editing" required maxlength="60"
                            autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="test"
-                           aria-describedby="site-name-hint" class="input read-only:text-grey">
+                           aria-describedby="site-name-hint" class="input input-strong read-only:border-line read-only:bg-paper read-only:text-subtle">
                     <p id="site-name-hint" class="hint" x-text="siteForm.editing ? 'The name can\'t change, because feedback is filed under it.' : 'Lower case, numbers and dashes. You\'ll see it in the inbox.'"></p>
                 </div>
                 <div>
-                    <label for="site-addresses" class="label">Addresses</label>
+                    <label for="site-addresses" class="field-label">Addresses</label>
                     <textarea id="site-addresses" x-ref="siteAddresses" x-model="siteForm.addresses" required rows="3"
                               autocomplete="off" autocapitalize="none" spellcheck="false"
                               placeholder="https://www.test.org&#10;https://staging.test.org"
                               aria-describedby="site-addresses-hint" class="input resize-y"></textarea>
-                    <p id="site-addresses-hint" class="hint">One per line: live, staging, or local. The first is where "Open on page" links go.</p>
+                    <p id="site-addresses-hint" class="hint">One per line: live, staging or local. The first is where "Open on page" links go.</p>
                 </div>
-                <div class="md:col-span-2">
-                    <label for="site-clients" class="label">Clients</label>
+                <div>
+                    <label for="site-clients" class="field-label">Clients</label>
                     <textarea id="site-clients" x-model="siteForm.clients" rows="3"
                               autocomplete="off" autocapitalize="none" spellcheck="false"
                               placeholder="mike@test.org&#10;anna@test.org"
                               aria-describedby="site-clients-hint" class="input resize-y"></textarea>
                     <p id="site-clients-hint" class="hint">Email addresses, one per line. Only these people (and your team) can sign in to leave feedback on this site.</p>
                 </div>
-                <div class="md:col-span-2">
-                    <label for="site-notify" class="label">Notify</label>
-                    <textarea id="site-notify" x-model="siteForm.notify" rows="2"
+                <div>
+                    <label for="site-notify" class="field-label">Notify</label>
+                    <textarea id="site-notify" x-model="siteForm.notify" rows="3"
                               autocomplete="off" autocapitalize="none" spellcheck="false"
                               placeholder="you@example.com"
                               aria-describedby="site-notify-hint" class="input resize-y"></textarea>
-                    <p id="site-notify-hint" class="hint">Team emails, one per line. They're emailed when a client leaves feedback or replies. Clients are emailed when you reply or resolve their feedback.</p>
+                    <p id="site-notify-hint" class="hint">Team emails, one per line. They're emailed when a client leaves feedback or replies, and can be assigned its feedback. Clients are emailed when you reply or resolve their feedback.</p>
                 </div>
             </div>
 
-            <p x-show="siteError" role="alert" class="mt-[20px] text-sm text-danger" x-text="siteError"></p>
+            <p x-show="siteError" role="alert" class="mt-[20px] text-sm font-medium text-danger" x-text="siteError"></p>
 
-            <div class="mt-[30px] flex flex-wrap gap-[12px]">
-                <button type="submit" class="btn" :disabled="savingSite" x-text="savingSite ? 'Saving…' : (siteForm.editing ? 'Save changes' : 'Add site')"></button>
+            <div class="mt-[28px] flex flex-wrap gap-[12px]">
+                <button type="submit" class="btn-violet" :disabled="savingSite" x-text="savingSite ? 'Saving…' : (siteForm.editing ? 'Save changes' : 'Add site')"></button>
                 <button type="button" class="btn-outline" @click="closeSiteForm()">Cancel</button>
             </div>
         </form>
 
-        <div x-show="!sites.length && !siteForm.open" class="mt-[50px] border-t border-line pt-[40px]">
+        <div x-show="!sites.length && !siteForm.open" class="card mt-[36px] px-[24px] py-[48px] text-center">
             <p class="title">No sites yet.</p>
-            <p class="mt-[10px] text-sm text-grey md:text-lg">Add the first website you want feedback on.</p>
+            <p class="mt-[10px] text-base text-muted">Add the first website you want feedback on.</p>
         </div>
 
-        <ul class="mt-[50px]" x-show="sites.length">
+        <ul class="mt-[36px] space-y-[36px]" x-show="sites.length">
             <template x-for="site in sites" :key="site.name">
-                <li :id="`site-${site.name}`" tabindex="-1" class="border-t border-line py-[30px] outline-none last:border-b md:py-[40px]">
+                <li :id="`site-${site.name}`" tabindex="-1" class="card-bold overflow-hidden outline-none">
 
-                    <div class="flex flex-wrap items-start justify-between gap-[20px]">
-                        <div class="min-w-0">
-                            <h2 class="title" x-text="site.name">Site</h2>
-                            <ul class="mt-[8px] space-y-[2px] text-sm text-grey">
-                                <template x-for="address in site.addresses" :key="address">
-                                    <li class="break-all" x-text="address"></li>
-                                </template>
-                            </ul>
+                    <div class="flex flex-wrap items-center justify-between gap-[16px] border-b border-line px-[20px] py-[20px] md:px-[28px] md:py-[24px]">
+                        <div class="flex min-w-0 items-center gap-[16px]">
+                            <span class="grid size-[52px] shrink-0 place-items-center rounded-[14px] bg-lilac font-display text-2xl font-extrabold uppercase" aria-hidden="true" x-text="site.name.slice(0, 1)"></span>
+                            <div class="min-w-0">
+                                <h2 class="title" x-text="site.name">Site</h2>
+                                <ul class="mt-[2px] space-y-[2px] text-[15px] text-subtle">
+                                    <template x-for="address in site.addresses" :key="address">
+                                        <li class="break-all" x-text="address"></li>
+                                    </template>
+                                </ul>
+                            </div>
                         </div>
-                        <div class="flex flex-wrap items-center gap-x-[24px] gap-y-[10px]">
-                            <button type="button" class="arrow-link" @click="showSnags(site.name)">
+                        <div class="flex flex-wrap items-center gap-[6px]">
+                            <button type="button" class="btn-violet h-[44px]" @click="showSnags(site.name)">
                                 View feedback<span class="sr-only" x-text="` for ${site.name}`"></span>
-                                <svg class="w-[14px]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8"/></svg>
                             </button>
-                            <button type="button" class="text-link text-grey hover:text-black" @click="openSiteForm(site)">Edit<span class="sr-only" x-text="` ${site.name}`"></span></button>
-                            <button type="button" class="text-link text-danger" x-show="removingSite !== site.name" @click="removingSite = site.name">Remove<span class="sr-only" x-text="` ${site.name}`"></span></button>
+                            <button type="button" class="rounded-full px-[16px] py-[11px] text-[15px] font-semibold transition duration-300 hover:bg-paper" @click="openSiteForm(site)">Edit<span class="sr-only" x-text="` ${site.name}`"></span></button>
+                            <button type="button" class="rounded-full px-[16px] py-[11px] text-[15px] font-semibold text-danger transition duration-300 hover:bg-[#FDE2E4]" x-show="removingSite !== site.name" @click="removingSite = site.name">Remove<span class="sr-only" x-text="` ${site.name}`"></span></button>
                         </div>
                     </div>
 
-                    <fieldset x-show="removingSite === site.name" class="mt-[20px] flex flex-wrap items-center gap-[12px] bg-mist p-[16px]">
-                        <legend class="float-left mb-[8px] w-full text-sm">Remove <strong x-text="site.name"></strong>? It will stop accepting feedback. The feedback it already has is kept, and comes back if you add it again.</legend>
+                    <fieldset x-show="removingSite === site.name" class="mx-[20px] mt-[20px] flex flex-wrap items-center gap-[12px] rounded-[16px] bg-[#FDE2E4] p-[16px] md:mx-[28px]">
+                        <legend class="float-left mb-[8px] w-full text-[15px]">Remove <strong x-text="site.name"></strong>? It will stop accepting feedback. The feedback it already has is kept, and comes back if you add it again.</legend>
                         <button type="button" class="btn-danger" @click="removeSite(site.name)">Remove</button>
                         <button type="button" class="btn-outline" @click="removingSite = null">Cancel</button>
                     </fieldset>
 
-                    <div class="mt-[24px] grid gap-[24px] md:grid-cols-2">
-                        <div>
-                            <span class="label">Clients</span>
-                            <p class="text-sm text-grey" x-show="!site.clients?.length">None yet. Only your team can leave feedback on this site.</p>
+                    <div class="grid gap-[20px] p-[20px] md:grid-cols-2 md:p-[28px]">
+                        <div class="tile">
+                            <h3 class="label">Clients</h3>
+                            <p class="text-base text-muted" x-show="!site.clients?.length">None yet. Only your team can leave feedback on this site.</p>
                             <ul class="email-list" x-show="site.clients?.length">
                                 <template x-for="email in site.clients" :key="email">
                                     <li x-text="email"></li>
                                 </template>
                             </ul>
                         </div>
-                        <div>
-                            <span class="label">Notify</span>
-                            <p class="text-sm text-grey" x-show="!site.notify?.length">Nobody. Add team emails to hear about new feedback.</p>
+                        <div class="tile">
+                            <h3 class="label">Notify</h3>
+                            <p class="text-base text-muted" x-show="!site.notify?.length">Nobody. Add team emails to hear about new feedback.</p>
                             <ul class="email-list" x-show="site.notify?.length">
                                 <template x-for="email in site.notify" :key="email">
                                     <li x-text="email"></li>
                                 </template>
                             </ul>
                         </div>
-                        <div class="md:col-span-2">
-                            <span class="label">Link to send clients</span>
-                            <div class="flex flex-wrap items-center gap-x-[16px] gap-y-[4px]">
-                                <span class="break-all text-sm" x-text="feedbackLink(site)"></span>
-                                <button type="button" class="text-link font-medium" @click="copyText(feedbackLink(site), 'Link')">Copy<span class="sr-only"> the link for <span x-text="site.name"></span></span></button>
-                            </div>
-                        </div>
                     </div>
 
-                    <div class="mt-[24px]">
-                        <div class="flex items-center justify-between gap-[12px]">
-                            <span class="label mb-0" :id="`snippet-label-${site.name}`">Snippet for this site</span>
-                            <button type="button" class="text-link font-medium" @click="copySnippet(site)" x-text="copiedSite === site.name ? 'Copied' : 'Copy snippet'"></button>
+                    <div class="space-y-[20px] px-[20px] pb-[24px] md:px-[28px] md:pb-[28px]">
+                        <div>
+                            <h3 class="label">Link to send clients</h3>
+                            <div class="flex flex-wrap items-center gap-[10px] rounded-[14px] border border-line p-[8px] pl-[18px]">
+                                <svg class="w-[18px] shrink-0 text-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                                <span class="min-w-0 flex-1 break-all text-base font-medium" x-text="feedbackLink(site)"></span>
+                                <button type="button" class="h-[44px] rounded-[10px] bg-ink px-[18px] text-sm font-semibold text-white transition duration-300 hover:bg-ink-soft" @click="copyText(feedbackLink(site), 'Link')">Copy link<span class="sr-only"> for <span x-text="site.name"></span></span></button>
+                            </div>
                         </div>
-                        <pre class="mt-[10px] overflow-x-auto bg-mist p-[16px] font-mono text-xs/[1.6]" :aria-labelledby="`snippet-label-${site.name}`"><code x-text="snippet(site)"></code></pre>
+
+                        <div>
+                            <h3 class="label" :id="`snippet-label-${site.name}`">Snippet for this site</h3>
+                            <div class="flex flex-wrap items-center gap-[12px] rounded-[14px] bg-ink p-[8px] pl-[20px]">
+                                <pre class="min-w-0 flex-1 overflow-x-auto py-[12px] font-mono text-sm/[1.6] text-on-ink" :aria-labelledby="`snippet-label-${site.name}`"><code x-text="snippet(site)"></code></pre>
+                                <button type="button" class="h-[44px] rounded-[10px] bg-lilac px-[18px] text-sm font-semibold text-ink transition duration-300 hover:bg-white" @click="copySnippet(site)" x-text="copiedSite === site.name ? 'Copied' : 'Copy snippet'"></button>
+                            </div>
+                        </div>
                     </div>
 
                 </li>
@@ -510,18 +598,18 @@
 
     </section>
 
-    <div x-show="zoomed && selected" x-cloak x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-[10px] md:p-[40px]" role="dialog" aria-modal="true" aria-label="Screenshot" @click.self="zoomed = false">
-        <div class="relative max-h-full max-w-full">
+    <div x-show="zoomed && selected" x-cloak x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-ink/90 p-[10px] md:p-[40px]" role="dialog" aria-modal="true" aria-label="Screenshot" @click.self="zoomed = false">
+        <div class="relative max-h-full max-w-full overflow-hidden rounded-[12px]">
             <img :src="screenshot(selected)" alt="" class="block max-h-[calc(100vh-80px)] w-auto">
-            <span class="absolute border-2 border-yellow" :style="regionStyle(selected)" aria-hidden="true"></span>
+            <span class="absolute rounded-[6px] border-[3px] border-violet" :style="regionStyle(selected)" aria-hidden="true"></span>
         </div>
-        <button type="button" @click="zoomed = false" class="absolute right-[14px] top-[14px] rounded-full bg-white px-[16px] py-[8px] text-sm font-medium" x-effect="zoomed && $nextTick(() => $el.focus())">Close</button>
+        <button type="button" @click="zoomed = false" class="absolute right-[14px] top-[14px] h-[44px] rounded-full bg-white px-[18px] text-[15px] font-semibold text-ink" x-effect="zoomed && $nextTick(() => $el.focus())">Close</button>
     </div>
 
     <div class="pointer-events-none fixed inset-x-0 bottom-[20px] z-[60] flex flex-col items-center gap-[8px] px-[10px]">
         <template x-for="toast in toasts" :key="toast.id">
-            <p x-transition.opacity class="rounded-full px-[18px] py-[10px] text-sm font-medium shadow-[0_6px_24px_rgba(0,0,0,0.18)]"
-               :class="toast.tone === 'error' ? 'bg-danger text-white' : 'bg-black text-white'" x-text="toast.message"></p>
+            <p x-transition.opacity class="rounded-full px-[18px] py-[11px] text-[15px] font-semibold shadow-[0_12px_32px_rgba(21,18,46,0.3)]"
+               :class="toast.tone === 'error' ? 'bg-danger text-white' : 'bg-ink text-white'" x-text="toast.message"></p>
         </template>
     </div>
 

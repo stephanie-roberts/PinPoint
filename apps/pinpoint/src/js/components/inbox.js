@@ -108,6 +108,7 @@ const Inbox = () => ({
   reply: "",
   sending: false,
   confirmingDelete: false,
+  confirmingRowDelete: null, // the id of the card whose bin was clicked
   zoomed: false,
 
   toasts: [],
@@ -459,6 +460,23 @@ const Inbox = () => ({
     this.refresh();
   },
 
+  // "Stephanie Lennox" → "SL", for the round avatars.
+  initials(name) {
+    const parts = String(name ?? "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    return (parts.length > 1 ? parts[0][0] + parts.at(-1)[0] : (parts[0] ?? "?").slice(0, 2)).toUpperCase();
+  },
+
+  get isClosed() {
+    return this.selected?.status === "resolved" || this.selected?.status === "wont_fix";
+  },
+
+  markDone() {
+    return this.setStatus("resolved");
+  },
+
   // ---------------------------------------------------------------- selection
 
   get selected() {
@@ -581,15 +599,20 @@ const Inbox = () => ({
     }
   },
 
-  async deleteSelected() {
-    const item = this.selected;
+  deleteSelected() {
+    return this.deleteItem(this.selected);
+  },
+
+  // Used by the bin on each card and the Delete button in the details panel.
+  async deleteItem(item) {
     if (!item) return;
     try {
       await this.api.remove(item.projectName, item.id);
-      const index = this.selectedIndex;
-      this.items.splice(index, 1);
+      const index = this.items.findIndex((i) => i.id === item.id);
+      if (index !== -1) this.items.splice(index, 1);
       this.total -= 1;
-      this.selectedId = null;
+      if (this.selectedId === item.id) this.selectedId = null;
+      this.confirmingRowDelete = null;
       this.notify("Feedback deleted.");
       this.refreshCounts();
       this.$nextTick(() => {
@@ -599,6 +622,16 @@ const Inbox = () => ({
     } catch (error) {
       this.handleError(error);
     }
+  },
+
+  askToDelete(item) {
+    this.confirmingRowDelete = item.id;
+    this.$nextTick(() => document.getElementById(`confirm-delete-${item.id}`)?.focus());
+  },
+
+  cancelRowDelete(item) {
+    this.confirmingRowDelete = null;
+    this.$nextTick(() => document.getElementById(`bin-${item.id}`)?.focus());
   },
 
   async copyLink() {

@@ -41,7 +41,7 @@ Codes expire after 10 minutes. Once signed in, your session lasts 30 days unless
 
 1. Open [the demo page](http://localhost:3000/demo.html?feedback).
 2. Click **Sign in to leave feedback** and sign in.
-3. Click the round feedback button in the bottom-right corner and choose **Leave feedback**.
+3. Click the violet **Leave feedback** button in the toolbar at the bottom right.
 4. Draw a box around part of the page, choose a type and add your comment.
 5. Click **Send**, then open the inbox and select the **test** site to see it.
 
@@ -54,7 +54,7 @@ Use the site picker in the inbox to choose a website. You can filter feedback by
 Open an item to:
 
 - View its screenshot and open the original page.
-- Change its status to **Open**, **In progress**, **Resolved** or **Won't fix**.
+- Click **Mark as done**, or set its status to **Open**, **In progress**, **Resolved** or **Won't fix**.
 - Reply to the client.
 - View browser information. Feedback left with older versions may also include console and network details.
 - Delete feedback you no longer need.
@@ -94,7 +94,7 @@ For a Statamic site, add it near the bottom of the main layout, such as `layout.
 
 ### What clients can do
 
-Once signed in, clients see a round feedback button in the bottom-right corner. From there they can:
+Once signed in, clients see a small toolbar in the bottom-right corner: a button to show or hide the pins, a list of the feedback on the page (with how many are open), and the violet **Leave feedback** button. With it they can:
 
 - Drag a box around part of the page, or click an element, then choose a type and leave a comment.
 - Leave feedback about the whole page.
@@ -110,7 +110,7 @@ The widget's code is in `apps/pinpoint/loader/pinpoint-widget.js`, a single Java
 
 ### Sharing it with clients
 
-Under **Link to send clients**, click **Copy** and send that link to the client. It opens their website with feedback enabled, for example:
+Under **Link to send clients**, click **Copy link** and send that link to the client. It opens their website with feedback enabled, for example:
 
 ```text
 https://www.example.com/?feedback

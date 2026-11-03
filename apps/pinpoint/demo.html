@@ -1,78 +1,191 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en-GB">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
     <title>Demo — PinPoint</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%235B3DF5'/%3E%3Cpath d='M12 8.5 L12 23 L15.6 19.8 L18.1 25 L20.7 23.8 L18.2 18.7 L23 18.7 Z' fill='%23fff' stroke='%2315122E' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/src/css/site.css">
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen overflow-x-hidden">
 
-    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-[10px] focus:top-[10px] focus:z-[60] focus:bg-yellow focus:px-[14px] focus:py-[10px] focus:text-sm focus:font-bold">Skip to the demo</a>
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-[10px] focus:top-[10px] focus:z-[60] focus:rounded-full focus:bg-lilac focus:px-[16px] focus:py-[10px] focus:text-sm focus:font-bold">Skip to the demo</a>
 
-    <header class="bg-black text-white">
-
-        <div class="mx-auto flex h-[60px] max-w-[1440px] items-center justify-between gap-[20px] px-[10px] lg:h-[80px] lg:px-[35px]">
-            
-            <a href="/demo.html" class="flex items-baseline gap-[10px]">
-                <span class="text-lg font-bold tracking-[-0.01em] md:text-2xl">PinPoint</span>
-                <span class="text-xs uppercase tracking-[0.12em] text-white/60 md:text-sm">Demo</span>
+    <header class="bg-ink text-white">
+        <div class="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-[16px] px-[16px] py-[16px] md:px-[32px]">
+            <a href="/demo.html" class="flex items-center gap-[12px]">
+                <svg viewBox="0 0 32 32" class="size-[36px]" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#5B3DF5"/><path d="M12 8.5 L12 23 L15.6 19.8 L18.1 25 L20.7 23.8 L18.2 18.7 L23 18.7 Z" fill="#FFFFFF" stroke="#15122E" stroke-width="2" stroke-linejoin="round"/><path d="M9.6 10.2 L7.4 9.4 M10.4 7.2 L9.4 5.2 M13.4 6.4 L13.9 4.3" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span class="font-display text-[24px] font-extrabold tracking-[-0.02em]">PinPoint</span>
+                <span class="rounded-full bg-ink-soft px-[10px] py-[4px] text-xs font-semibold uppercase tracking-[0.12em] text-lilac">Demo</span>
             </a>
-            <a href="/" class="text-sm transition duration-300 hover:text-yellow md:text-base">Open the inbox</a>
+            <nav aria-label="Main" class="flex flex-wrap items-center gap-[4px]">
+                <a href="#how" class="hidden rounded-full px-[14px] py-[10px] text-[15px] font-medium text-on-ink transition duration-300 hover:text-white sm:inline-block">How it works</a>
+                <a href="#snag" class="hidden rounded-full px-[14px] py-[10px] text-[15px] font-medium text-on-ink transition duration-300 hover:text-white sm:inline-block">Try a snag</a>
+                <a href="/" class="btn-violet h-[44px] px-[20px]">Open the inbox</a>
+            </nav>
         </div>
     </header>
 
-    <main id="main" class="mx-auto grid max-w-[1440px] gap-[10px] px-[10px] py-[30px] md:gap-[20px] md:py-[60px] lg:grid-cols-2 lg:px-[35px]">
+    <main id="main">
 
-        <section aria-labelledby="try-heading" class="bg-white p-[20px] md:p-[50px]">
-            <h1 id="try-heading" class="text-[2.5rem] font-bold leading-none tracking-[-0.02em] md:text-[4.375rem]">Try PinPoint</h1>
-            <p class="mt-[20px] text-sm/[1.4] text-grey md:text-lg/[1.3]">This page is set up as the "test" site, so anything you pin here lands in your inbox.</p>
-
-            <ol class="mt-[40px] border-t border-line">
-                <li class="flex gap-[16px] border-b border-line py-[18px]">
-                    <span class="text-sm font-bold text-grey">01</span>
-                    <p class="text-sm md:text-base">Open <a href="/demo.html?feedback" class="arrow-link">/demo.html?feedback</a> to switch the widget on.</p>
-                </li>
-                <li class="flex gap-[16px] border-b border-line py-[18px]">
-                    <span class="text-sm font-bold text-grey">02</span>
-                    <p class="text-sm md:text-base">Sign in with your name and email, then type the 6-digit code.</p>
-                </li>
-                <li class="flex gap-[16px] border-b border-line py-[18px]">
-                    <span class="text-sm font-bold text-grey">03</span>
-                    <p class="text-sm md:text-base">Click the round button in the corner, choose Leave feedback and drag a box around anything.</p>
-                </li>
-                <li class="flex gap-[16px] border-b border-line py-[18px]">
-                    <span class="text-sm font-bold text-grey">04</span>
-                    <p class="text-sm md:text-base">Pick a type, write a note and send. It shows up in the inbox straight away.</p>
-                </li>
-            </ol>
-
-            <a href="/" class="btn mt-[40px]">Open the inbox</a>
-        </section>
-
-        <section aria-labelledby="snag-heading" class="bg-white p-[20px] md:p-[50px]">
-            <span class="label">Something to snag</span>
-            <h2 id="snag-heading" class="text-2xl font-bold tracking-[-0.01em] md:text-[2.25rem]">This panel has a few mistakes</h2>
-            <p class="mt-[14px] text-sm/[1.4] text-grey md:text-base">See if you can spot them, then pin feedback on each one.</p>
-
-            <article class="mt-[40px] border border-line">
-                <div class="grid aspect-[16/9] place-items-center bg-yellow">
-                    <svg class="w-[60px] text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" />
-                        <circle cx="12" cy="9.5" r="2.5" />
-                    </svg>
+        <!-- Hero -->
+        <section class="mx-auto flex max-w-[1280px] flex-wrap items-center gap-[56px] px-[16px] pb-[48px] pt-[56px] md:gap-[64px] md:px-[32px] md:pb-[64px] md:pt-[88px]">
+            <div class="flex min-w-0 flex-[1_1_440px] flex-col gap-[28px]">
+                <p class="inline-flex items-center gap-[8px] self-start rounded-full border border-line bg-white px-[14px] py-[8px] text-sm font-medium text-muted">
+                    <span class="size-[8px] rounded-full bg-violet" aria-hidden="true"></span>
+                    This page is the "test" site. Anything you snag lands in your inbox.
+                </p>
+                <h1 class="font-display text-[clamp(3rem,7vw,5.75rem)] font-extrabold leading-[0.95] tracking-[-0.035em]">
+                    Point at it.<br>
+                    <span class="relative -ml-[14px] inline-block -rotate-[1.5deg] rounded-[10px] border-4 border-violet px-[14px]">Snag it.
+                        <svg viewBox="0 0 24 24" class="absolute -bottom-[34px] -right-[30px] size-[44px]" aria-hidden="true"><path d="M5 3 L5 19 L9 15.4 L11.8 21.4 L14.8 20 L12 14.2 L17.6 14.2 Z" fill="#15122E" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                    </span><br>
+                    Sorted.
+                </h1>
+                <p class="max-w-[520px] text-lg/[1.55] text-muted md:text-xl/[1.55]">Clients draw a box around the problem and leave a note. You get the page, the screen size, the browser and a screenshot with every snag, all in one inbox.</p>
+                <div class="flex flex-wrap gap-[12px]">
+                    <a href="/demo.html?feedback" class="btn h-[56px] px-[28px] text-[17px]">
+                        <svg class="w-[20px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        Try a snag
+                    </a>
+                    <a href="/" class="btn-outline h-[56px] px-[28px] text-[17px]">Open the inbox</a>
                 </div>
-                <div class="p-[20px] md:p-[30px]">
-                    <p class="label">New feature</p>
-                    <h3 class="text-xl font-bold md:text-2xl">Pin feedback right on the page</h3>
-                    <p class="mt-[10px] text-sm/[1.5] text-grey md:text-base/[1.5]">Clients draw a box around the problem and leave a note. You get the page, the screen size and the browser with every peice of feedback.</p>
-                    <div class="mt-[24px] flex flex-wrap items-center gap-[12px]">
-                        <button type="button" class="btn">Find out more</button>
-                        <button type="button" class="btn-outline text-grey">Maybe latter</button>
+            </div>
+
+            <!-- Browser with a snag on it (an illustration) -->
+            <div class="relative min-w-0 flex-[1_1_480px] pb-[40px]" aria-hidden="true">
+                <div class="overflow-hidden rounded-[18px] border-2 border-ink bg-white shadow-[10px_10px_0_var(--color-ink)]">
+                    <div class="flex items-center gap-[14px] border-b-2 border-ink bg-paper px-[18px] py-[14px]">
+                        <div class="flex gap-[7px]">
+                            <span class="size-[12px] rounded-full bg-violet"></span>
+                            <span class="size-[12px] rounded-full bg-lilac"></span>
+                            <span class="size-[12px] rounded-full bg-line-strong"></span>
+                        </div>
+                        <div class="min-w-0 flex-1 truncate rounded-[8px] border border-line bg-white px-[12px] py-[7px] text-[13px] text-subtle">localhost:3000/demo.html?feedback</div>
+                    </div>
+                    <div class="relative flex h-[340px] flex-col gap-[16px] p-[24px] md:h-[380px] md:p-[28px]">
+                        <div class="h-[14px] w-[30%] rounded-[6px] bg-line"></div>
+                        <div class="h-[30px] w-[72%] rounded-[6px] bg-ink"></div>
+                        <div class="h-[12px] w-[88%] rounded-[6px] bg-line"></div>
+                        <div class="h-[12px] w-[64%] rounded-[6px] bg-line"></div>
+                        <div class="mt-[8px] flex gap-[14px]">
+                            <div class="h-[150px] flex-1 rounded-[12px] bg-lilac"></div>
+                            <div class="flex flex-1 flex-col gap-[10px] pt-[8px]">
+                                <div class="h-[12px] w-[90%] rounded-[6px] bg-line"></div>
+                                <div class="h-[12px] w-[70%] rounded-[6px] bg-line"></div>
+                                <div class="relative mt-[10px] h-[36px] w-[120px] rounded-full bg-ink">
+                                    <div class="absolute -inset-[12px] rounded-[8px] border-[3px] border-violet bg-violet/10"></div>
+                                    <span class="absolute -left-[26px] -top-[26px] grid size-[30px] place-items-center rounded-full border-2 border-white bg-violet text-sm font-bold text-white">1</span>
+                                    <svg viewBox="0 0 24 24" class="absolute -bottom-[34px] -right-[22px] size-[30px]" aria-hidden="true"><path d="M5 3 L5 19 L9 15.4 L11.8 21.4 L14.8 20 L12 14.2 L17.6 14.2 Z" fill="#15122E" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </article>
+
+                <div class="absolute -right-[8px] bottom-0 flex w-[280px] flex-col gap-[12px] rounded-[16px] border-2 border-ink bg-white p-[18px] shadow-[0_18px_40px_rgba(21,18,46,0.18)] md:w-[300px]">
+                    <div class="flex flex-wrap gap-[6px]">
+                        <span class="rounded-full bg-violet px-[12px] py-[6px] text-[13px] font-semibold text-white">Bug</span>
+                        <span class="rounded-full border border-line bg-paper px-[12px] py-[6px] text-[13px] font-semibold text-muted">Change</span>
+                        <span class="rounded-full border border-line bg-paper px-[12px] py-[6px] text-[13px] font-semibold text-muted">Question</span>
+                    </div>
+                    <p class="text-[15px]/[1.45]">The button is touching the text on mobile. Can it have more space?</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[13px] text-subtle">/demo.html · 1</span>
+                        <span class="rounded-full bg-ink px-[16px] py-[8px] text-sm font-semibold text-white">Send</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- What comes with every snag -->
+        <section aria-labelledby="comes-with" class="mx-auto max-w-[1280px] px-[16px] pb-[72px] md:px-[32px]">
+            <div class="flex flex-wrap items-center gap-[12px]">
+                <h2 id="comes-with" class="mr-[8px] text-sm font-semibold uppercase tracking-[0.1em] text-subtle">Comes with every snag</h2>
+                <span class="inline-flex items-center gap-[8px] rounded-[12px] border border-line bg-white px-[16px] py-[10px] text-[15px] font-medium">
+                    <svg class="w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6"/></svg>
+                    The page
+                </span>
+                <span class="inline-flex items-center gap-[8px] rounded-[12px] border border-line bg-white px-[16px] py-[10px] text-[15px] font-medium">
+                    <svg class="w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                    Screen size
+                </span>
+                <span class="inline-flex items-center gap-[8px] rounded-[12px] border border-line bg-white px-[16px] py-[10px] text-[15px] font-medium">
+                    <svg class="w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+                    Browser
+                </span>
+                <span class="inline-flex items-center gap-[8px] rounded-[12px] border border-line bg-white px-[16px] py-[10px] text-[15px] font-medium">
+                    <svg class="w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m21 16-5-5-8 8"/></svg>
+                    Screenshot
+                </span>
+            </div>
+        </section>
+
+        <!-- How it works -->
+        <section id="how" aria-labelledby="how-heading" class="bg-ink text-white">
+            <div class="mx-auto flex max-w-[1280px] flex-col gap-[40px] px-[16px] py-[64px] md:gap-[48px] md:px-[32px] md:py-[88px]">
+                <div class="flex flex-wrap items-end justify-between gap-[24px]">
+                    <h2 id="how-heading" class="max-w-[640px] font-display text-[clamp(2.25rem,5vw,3.75rem)] font-extrabold leading-none tracking-[-0.03em]">Four steps to your <span class="text-lilac">first snag</span></h2>
+                    <p class="max-w-[360px] text-[17px]/[1.5] text-on-ink">No account to set up for clients. They sign in with a code sent to their email.</p>
+                </div>
+                <ol class="grid gap-[20px] sm:grid-cols-2 lg:grid-cols-4">
+                    <li class="flex flex-col gap-[18px] rounded-[20px] border border-ink-line bg-[#221E44] p-[28px]">
+                        <span class="font-display text-[44px] font-extrabold leading-none text-[#8C78FF]" aria-hidden="true">01</span>
+                        <h3 class="text-xl font-semibold">Switch it on</h3>
+                        <p class="text-base/[1.5] text-on-ink">Open <a href="/demo.html?feedback" class="font-semibold text-lilac underline underline-offset-2">/demo.html?feedback</a> to turn the widget on.</p>
+                    </li>
+                    <li class="flex flex-col gap-[18px] rounded-[20px] border border-ink-line bg-[#221E44] p-[28px]">
+                        <span class="font-display text-[44px] font-extrabold leading-none text-[#8C78FF]" aria-hidden="true">02</span>
+                        <h3 class="text-xl font-semibold">Sign in</h3>
+                        <p class="text-base/[1.5] text-on-ink">Add your name and email, then type the 6-digit code.</p>
+                    </li>
+                    <li class="flex flex-col gap-[18px] rounded-[20px] border border-ink-line bg-[#221E44] p-[28px]">
+                        <span class="font-display text-[44px] font-extrabold leading-none text-[#8C78FF]" aria-hidden="true">03</span>
+                        <h3 class="text-xl font-semibold">Draw a box</h3>
+                        <p class="text-base/[1.5] text-on-ink">Click the violet button in the corner, then drag a box around anything.</p>
+                    </li>
+                    <li class="flex flex-col gap-[18px] rounded-[20px] border border-ink-line bg-[#221E44] p-[28px]">
+                        <span class="font-display text-[44px] font-extrabold leading-none text-[#8C78FF]" aria-hidden="true">04</span>
+                        <h3 class="text-xl font-semibold">Send it</h3>
+                        <p class="text-base/[1.5] text-on-ink">Pick a type, write a note and send. It shows up in the inbox straight away.</p>
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- Something to snag -->
+        <section id="snag" aria-labelledby="snag-heading" class="mx-auto flex max-w-[1280px] flex-wrap items-center gap-[48px] px-[16px] py-[64px] md:gap-[64px] md:px-[32px] md:py-[96px]">
+            <div class="flex min-w-0 flex-[1_1_360px] flex-col gap-[20px]">
+                <span class="self-start rounded-[6px] bg-lilac px-[12px] py-[6px] text-[13px] font-bold uppercase tracking-[0.12em]">Your turn</span>
+                <h2 id="snag-heading" class="font-display text-[clamp(2.25rem,5vw,3.75rem)] font-extrabold leading-none tracking-[-0.03em]">This panel has a few mistakes</h2>
+                <p class="text-lg/[1.55] text-muted md:text-[19px]/[1.55]">See if you can spot them, then snag each one. They'll be waiting in your inbox, and each one gets a numbered pin on the page.</p>
+            </div>
+            <div class="min-w-0 flex-[1_1_480px]">
+                <article class="overflow-hidden rounded-[20px] border-2 border-ink bg-white shadow-[10px_10px_0_var(--color-lilac)]">
+                    <div class="relative flex h-[240px] items-center justify-center bg-lilac md:h-[280px]">
+                        <svg viewBox="0 0 24 24" class="size-[96px]" aria-hidden="true"><path d="M5 3 L5 19 L9 15.4 L11.8 21.4 L14.8 20 L12 14.2 L17.6 14.2 Z" fill="#FFFFFF" stroke="#15122E" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                        <svg viewBox="0 0 24 24" class="absolute left-[calc(50%-64px)] top-[calc(50%-74px)] size-[40px]" fill="none" stroke="#15122E" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M14 18 L9 15 M17 12 L12 6 M22 10 L21 4"/></svg>
+                    </div>
+                    <div class="flex flex-col gap-[14px] p-[24px] md:p-[36px]">
+                        <p class="text-[13px] font-bold uppercase tracking-[0.12em] text-subtle">New feature</p>
+                        <h3 class="font-display text-[1.75rem] font-bold tracking-[-0.02em] md:text-[2rem]">Pin feedback right on the page</h3>
+                        <p class="text-[17px]/[1.55] text-muted">Clients draw a box around the problem and leave a note. You get the page, the screen size and the browser with every peice of feedback.</p>
+                        <div class="mt-[10px] flex flex-wrap gap-[12px]">
+                            <a href="#how" class="btn h-[52px] px-[24px] text-base">Find out more</a>
+                            <a href="#main" class="btn-outline h-[52px] px-[22px] text-base">Maybe latter</a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- Inbox call to action -->
+        <section class="mx-auto max-w-[1280px] px-[16px] pb-[120px] md:px-[32px]">
+            <div class="flex flex-wrap items-center justify-between gap-[28px] rounded-[28px] bg-violet p-[32px] text-white md:p-[56px]">
+                <h2 class="max-w-[640px] font-display text-[clamp(2rem,4vw,3.25rem)] font-extrabold leading-none tracking-[-0.03em]">Snagged something? It's already in your inbox.</h2>
+                <a href="/" class="btn h-[60px] px-[30px] text-[17px]">Open the inbox</a>
+            </div>
         </section>
 
     </main>

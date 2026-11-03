@@ -1,87 +1,139 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
+/* Type colours are picked in JavaScript (bg-${item.type}, chip-${item.type}), so list them for Tailwind. */
 @source inline("bg-{bug,change,question,other}");
+@source inline("chip-{bug,change,question,other}");
 
 /*
-        Custom variables
+        Brand: ink, snag violet, lilac and paper (see the "PinPoint redesign" canvas)
 */
 
 @theme {
   --breakpoint-wide: 1440px;
 
   --color-white: rgba(255, 255, 255, 1);
-  --color-black: rgba(10, 10, 10, 1);
-  --color-grey: rgba(110, 110, 110, 1);
-  --color-line: rgba(231, 231, 231, 1);
-  --color-mist: rgba(246, 246, 244, 1);
-  --color-yellow: rgba(254, 214, 49, 1);
-  --color-light-yellow: rgba(254, 214, 49, 0.3);
-  --color-danger: rgba(214, 69, 54, 1);
+  --color-ink: rgba(21, 18, 46, 1); /* #15122E */
+  --color-ink-soft: rgba(42, 38, 80, 1); /* #2A2650 */
+  --color-ink-line: rgba(58, 53, 102, 1); /* #3A3566 */
+  --color-violet: rgba(91, 61, 245, 1); /* #5B3DF5 */
+  --color-violet-dark: rgba(69, 39, 217, 1); /* #4527D9 */
+  --color-lilac: rgba(220, 213, 255, 1); /* #DCD5FF */
+  --color-paper: rgba(246, 245, 251, 1); /* #F6F5FB */
+  --color-pale: rgba(240, 238, 248, 1); /* #F0EEF8 */
+  --color-muted: rgba(74, 71, 102, 1); /* #4A4766, body text on paper */
+  --color-subtle: rgba(91, 88, 115, 1); /* #5B5873, small labels */
+  --color-on-ink: rgba(217, 214, 238, 1); /* #D9D6EE, text on ink */
+  --color-line: rgba(228, 226, 238, 1); /* #E4E2EE */
+  --color-line-strong: rgba(201, 198, 218, 1); /* #C9C6DA */
+  --color-danger: rgba(180, 35, 24, 1); /* #B42318 */
 
-  /* feedback types */
+  /* feedback types: dot colours */
   --color-bug: rgba(214, 69, 54, 1);
   --color-change: rgba(232, 156, 22, 1);
   --color-question: rgba(0, 91, 164, 1);
   --color-other: rgba(128, 128, 128, 1);
 
   /* statuses */
-  --color-open: rgba(0, 91, 164, 1);
+  --color-open: rgba(91, 61, 245, 1);
   --color-progress: rgba(232, 156, 22, 1);
-  --color-resolved: rgba(66, 140, 52, 1);
-  --color-wontfix: rgba(128, 128, 128, 1);
+  --color-resolved: rgba(46, 133, 64, 1);
+  --color-wontfix: rgba(138, 135, 156, 1);
 
-  --font-body: "Inter", sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 @layer utilities {
   /* page layout and type */
-  .gutter {
-    @apply px-[10px] md:px-[35px] lg:px-0;
+  .wrap {
+    @apply mx-auto w-full max-w-[1360px] px-[16px] md:px-[32px];
   }
 
   .page-title {
-    @apply text-[2.5rem] font-bold leading-none tracking-[-0.02em] md:text-[3.5rem];
-  }
-
-  .page-title-lg {
-    @apply md:text-[4.375rem];
+    @apply font-display text-[2.75rem] font-extrabold leading-none tracking-[-0.035em] md:text-[4rem];
   }
 
   .title {
-    @apply text-lg font-bold md:text-2xl;
+    @apply font-display text-[1.375rem] font-bold tracking-[-0.02em] md:text-[1.75rem];
   }
 
   .intro {
-    @apply text-sm/[1.4] text-grey md:text-lg/[1.3];
+    @apply text-base/[1.55] text-muted md:text-[17px]/[1.55];
   }
 
   .hint {
-    @apply mt-[8px] text-xs text-grey;
+    @apply mt-[8px] text-sm text-subtle;
   }
 
-  /* header nav */
+  /* small uppercase labels */
+  .label {
+    @apply mb-[8px] block text-[13px] font-bold uppercase tracking-[0.1em] text-subtle;
+  }
+
+  /* a label for a form field (sentence case) */
+  .field-label {
+    @apply mb-[8px] block text-[15px] font-semibold text-ink;
+  }
+
+  /* header nav: pills, the current one lilac */
   .nav-link {
-    @apply pb-[2px] transition duration-300 hover:text-yellow aria-[current=page]:border-b-2 aria-[current=page]:border-yellow aria-[current=page]:font-bold;
+    @apply rounded-full px-[16px] py-[10px] text-[15px] font-medium text-on-ink transition duration-300 hover:text-white aria-[current=page]:bg-lilac aria-[current=page]:font-semibold aria-[current=page]:text-ink;
   }
 
-  /* small text buttons (add a colour), and the round previous / next buttons */
+  /* small text buttons (add a colour) */
   .text-link {
-    @apply text-sm underline-offset-2 transition duration-300 hover:underline;
+    @apply text-[15px] font-semibold underline-offset-2 transition duration-300 hover:underline;
   }
 
   .icon-btn {
-    @apply grid size-[36px] place-items-center rounded-full transition duration-300 hover:bg-mist disabled:opacity-30;
+    @apply grid size-[40px] place-items-center rounded-full transition duration-300 hover:bg-paper disabled:opacity-30;
   }
 
   /* type and status dots */
   .dot {
-    @apply size-[8px] rounded-full;
+    @apply size-[8px] shrink-0 rounded-full;
+  }
+
+  /* type chips: soft background, dark text */
+  .chip {
+    @apply inline-flex items-center gap-[6px] rounded-full px-[10px] py-[3px] text-[13px] font-bold;
+  }
+
+  .chip-bug {
+    @apply bg-[#FDE2E4] text-[#A11D2E];
+  }
+
+  .chip-change {
+    @apply bg-[#FFEBD1] text-[#8A4B00];
+  }
+
+  .chip-question {
+    @apply bg-[#DDEBFF] text-[#0B4A99];
+  }
+
+  .chip-other {
+    @apply bg-pale text-muted;
+  }
+
+  /* white panels */
+  .card {
+    @apply rounded-[24px] border border-line bg-white;
+  }
+
+  /* the bold, outlined cards from the brand */
+  .card-bold {
+    @apply rounded-[24px] border-2 border-ink bg-white shadow-[8px_8px_0_var(--color-ink)];
+  }
+
+  .tile {
+    @apply rounded-[16px] bg-paper p-[20px];
   }
 
   /* email lists on the site cards */
   .email-list {
-    @apply space-y-[2px] text-sm;
+    @apply space-y-[2px] text-base;
   }
 
   .email-list li {
@@ -90,20 +142,33 @@
 
   /* keyboard hints */
   .keys kbd {
-    @apply font-body font-bold;
+    @apply rounded-[6px] border border-b-2 border-line bg-white px-[7px] py-[2px] font-body text-xs font-semibold text-ink;
   }
 
-  /* status tabs */
+  /* status tabs: a segmented pill */
+  .tabs {
+    @apply flex w-fit gap-[6px] rounded-full border border-line bg-white p-[5px];
+  }
+
   .tabs button {
-    @apply relative h-full px-[2px] pb-[14px] pt-[16px] text-sm text-grey transition duration-300 hover:text-black md:text-base;
+    @apply flex items-center gap-[8px] rounded-full px-[16px] py-[9px] text-[15px] font-semibold text-muted transition duration-300 hover:text-ink md:px-[18px];
   }
 
   .tabs button[aria-pressed="true"] {
-    @apply font-bold text-black after:absolute after:inset-x-0 after:bottom-[-1px] after:h-[3px] after:bg-yellow after:content-[''];
+    @apply bg-ink text-white;
   }
 
   .tabs button .count {
-    @apply ml-[6px] text-xs font-medium text-grey;
+    @apply rounded-full bg-pale px-[8px] py-[1px] text-[13px];
+  }
+
+  .tabs button[aria-pressed="true"] .count {
+    @apply bg-violet text-white;
+  }
+
+  /* boxed controls */
+  .box {
+    @apply flex h-[48px] items-center rounded-[12px] border border-line bg-white px-[14px];
   }
 
   /* selects with a chevron */
@@ -112,85 +177,111 @@
   }
 
   .select select {
-    @apply cursor-pointer appearance-none bg-transparent pr-[20px] text-xs font-bold outline-none md:text-sm;
+    @apply cursor-pointer appearance-none bg-transparent pr-[24px] text-[15px] font-semibold text-ink outline-none;
   }
 
   .select svg {
     @apply pointer-events-none absolute right-0 top-1/2 mt-[1px] w-[11px] -translate-y-1/2;
   }
 
-  /* feedback rows */
+  /* a full-width boxed select (site picker, Assigned to) */
+  .select-box {
+    @apply relative flex h-[48px] items-center rounded-[12px] border-2 border-ink bg-white;
+  }
+
+  .select-box select {
+    @apply h-full w-full cursor-pointer appearance-none rounded-[12px] bg-transparent pl-[16px] pr-[40px] text-base font-semibold text-ink outline-none;
+  }
+
+  .select-box svg {
+    @apply pointer-events-none absolute right-[16px] top-1/2 w-[12px] -translate-y-1/2;
+  }
+
+  /* feedback rows: cards; the open one gets the brand's violet offset shadow */
   .row {
-    @apply block w-full border-b border-line px-[10px] py-[18px] text-left transition duration-300 md:px-[20px] md:py-[22px] hover:bg-mist;
+    @apply flex w-full gap-[16px] rounded-[16px] border-2 border-transparent bg-white p-[16px] text-left shadow-[0_0_0_1px_var(--color-line)] transition duration-300 hover:shadow-[0_0_0_1px_var(--color-ink)] md:p-[18px];
   }
 
   .row[aria-current="true"] {
-    @apply bg-light-yellow hover:bg-light-yellow;
+    @apply border-ink shadow-[6px_6px_0_var(--color-violet)] hover:shadow-[6px_6px_0_var(--color-violet)];
   }
 
   .row:focus-visible {
-    @apply outline-2 -outline-offset-2 outline-black;
-  }
-
-  /* small uppercase labels in the drawer */
-  .label {
-    @apply mb-[10px] block text-[11px] font-bold uppercase tracking-[0.08em] text-grey;
+    @apply outline-2 outline-offset-2 outline-violet;
   }
 
   .meta dt {
-    @apply text-xs text-grey;
+    @apply text-xs font-semibold uppercase tracking-[0.08em] text-subtle;
   }
 
   .meta dd {
-    @apply mb-[14px] break-words text-sm;
+    @apply mt-[4px] break-words text-[15px] font-semibold;
   }
 
   .arrow-link {
-    @apply inline-flex items-center gap-[8px] border-b-2 border-black pb-[2px] text-sm font-medium transition duration-300 hover:border-yellow hover:text-black;
+    @apply inline-flex items-center gap-[8px] text-[15px] font-semibold text-ink underline-offset-4 transition duration-300 hover:text-violet-dark hover:underline;
   }
 
   .btn {
-    @apply inline-flex h-[44px] items-center justify-center gap-[8px] rounded-full bg-black px-[22px] text-sm font-medium text-white transition duration-300 hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-[48px] items-center justify-center gap-[8px] rounded-full bg-ink px-[22px] text-[15px] font-semibold text-white transition duration-300 hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-violet {
+    @apply inline-flex h-[48px] items-center justify-center gap-[8px] rounded-full bg-violet px-[22px] text-[15px] font-semibold text-white transition duration-300 hover:bg-violet-dark disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-outline {
-    @apply inline-flex h-[44px] items-center justify-center gap-[8px] rounded-full border border-black px-[22px] text-sm font-medium transition duration-300 hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-[48px] items-center justify-center gap-[8px] rounded-full border-2 border-ink bg-white px-[20px] text-[15px] font-semibold text-ink transition duration-300 hover:bg-ink hover:text-white disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-danger {
-    @apply inline-flex h-[44px] items-center justify-center rounded-full bg-danger px-[22px] text-sm font-medium text-white transition duration-300 hover:bg-danger/85;
+    @apply inline-flex h-[48px] items-center justify-center rounded-full bg-danger px-[22px] text-[15px] font-semibold text-white transition duration-300 hover:bg-danger/85;
   }
 
   .input {
-    @apply block w-full border-b border-black bg-transparent py-[10px] text-sm outline-none transition duration-300 placeholder:text-grey focus:border-yellow md:text-base;
+    @apply block w-full rounded-[12px] border border-line-strong bg-white px-[16px] py-[13px] text-base text-ink outline-none transition duration-300 placeholder:text-subtle focus:border-ink focus:ring-2 focus:ring-lilac;
+  }
+
+  .input-strong {
+    @apply border-2 border-ink;
+  }
+
+  .avatar {
+    @apply grid size-[32px] shrink-0 place-items-center rounded-full bg-lilac text-[13px] font-semibold text-ink;
   }
 }
 
 body {
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-body);
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
-  color: var(--color-black);
-  background: var(--color-white);
+  color: var(--color-ink);
+  background: var(--color-paper);
 }
 
-a {
-  text-decoration: none;
-}
+/* In the base layer, so Tailwind's text colours on links and buttons always win. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-button {
-  cursor: pointer;
+  button {
+    cursor: pointer;
+  }
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-black);
+  outline: 2px solid var(--color-violet);
   outline-offset: 2px;
 }
 
 [x-cloak] {
+  /* biome-ignore lint/complexity/noImportantStyles: Alpine must hide x-cloak elements whatever else styles them */
   display: none !important;
 }
 
+/* biome-ignore-start lint/complexity/noImportantStyles: reduced motion has to win over every transition */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -199,3 +290,4 @@ button {
     animation-duration: 0.01ms !important;
   }
 }
+/* biome-ignore-end lint/complexity/noImportantStyles: reduced motion */
