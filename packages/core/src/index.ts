@@ -1,8 +1,8 @@
 export { settleWithConcurrencyLimit } from "./concurrency.js";
 export { buildDeepLink, parseHttpUrl } from "./deep-link.js";
 export { EMAIL_PATTERN, isValidEmail } from "./email.js";
-export type { TcPinpointErrorCode } from "./errors.js";
-export { TcPinpointAuthError, TcPinpointError, TcPinpointNetworkError, TcPinpointValidationError } from "./errors.js";
+export type { PinPointErrorCode } from "./errors.js";
+export { PinPointAuthError, PinPointError, PinPointNetworkError, PinPointValidationError } from "./errors.js";
 export type { FilterResult, Pagination } from "./filters.js";
 export {
   applyFeedbackFilters,
@@ -23,10 +23,10 @@ export type {
   RelationDef,
   RelationKind,
   RelationOnDelete,
-  TcPinpointModelFieldName,
-  TcPinpointModelName,
+  PinPointModelFieldName,
+  PinPointModelName,
 } from "./schema.js";
-export { isRelationField, isScalarField, TC_PINPOINT_MODELS } from "./schema.js";
+export { isRelationField, isScalarField, PINPOINT_MODELS } from "./schema.js";
 export type { ScreenshotStorage } from "./screenshot-storage.js";
 export { SCREENSHOT_DELETE_CONCURRENCY, screenshotMimeType } from "./screenshot-storage.js";
 export type { CollectionStore, CollectionStoreBackend } from "./store-helpers.js";
@@ -74,28 +74,28 @@ export type {
   PageScope,
   RectData,
   ScreenshotRegion,
-  TcPinpointBaseConfig,
-  TcPinpointCapabilities,
-  TcPinpointConfig,
-  TcPinpointDeepLinkOptions,
-  TcPinpointHeadersOption,
-  TcPinpointHttpConfig,
-  TcPinpointIdentity,
-  TcPinpointInstance,
-  TcPinpointLocale,
-  TcPinpointPanelAction,
-  TcPinpointPanelActionContext,
-  TcPinpointPanelActionFeedback,
-  TcPinpointPanelButtonAction,
-  TcPinpointPanelLinkAction,
-  TcPinpointPosition,
-  TcPinpointPublicEventListener,
-  TcPinpointPublicEvents,
-  TcPinpointSkipReason,
-  TcPinpointStore,
-  TcPinpointStoreConfig,
-  TcPinpointTheme,
-  TcPinpointUnsubscribe,
+  PinPointBaseConfig,
+  PinPointCapabilities,
+  PinPointConfig,
+  PinPointDeepLinkOptions,
+  PinPointHeadersOption,
+  PinPointHttpConfig,
+  PinPointIdentity,
+  PinPointInstance,
+  PinPointLocale,
+  PinPointPanelAction,
+  PinPointPanelActionContext,
+  PinPointPanelActionFeedback,
+  PinPointPanelButtonAction,
+  PinPointPanelLinkAction,
+  PinPointPosition,
+  PinPointPublicEventListener,
+  PinPointPublicEvents,
+  PinPointSkipReason,
+  PinPointStore,
+  PinPointStoreConfig,
+  PinPointTheme,
+  PinPointUnsubscribe,
 } from "./types.js";
 export {
   ANCHOR_ELEMENT_ID_MAX,

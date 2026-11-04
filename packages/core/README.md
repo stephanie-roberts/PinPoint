@@ -1,4 +1,4 @@
-# @tc-pinpoint/core
+# @pinpoint/core
 
 Shared types, schema and store helpers. Bundled into the other packages at build time.
 

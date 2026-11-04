@@ -19,8 +19,8 @@ describe("parseHttpUrl", () => {
 
 describe("buildDeepLink", () => {
   it("adds the feedback id under the given parameter, keeping the page's own query", () => {
-    expect(buildDeepLink({ id: "fb-1", url: "https://acme.test/p?step=2" }, "tcpinpoint")).toBe(
-      "https://acme.test/p?step=2&tcpinpoint=fb-1",
+    expect(buildDeepLink({ id: "fb-1", url: "https://acme.test/p?step=2" }, "pinpoint")).toBe(
+      "https://acme.test/p?step=2&pinpoint=fb-1",
     );
   });
 
@@ -32,6 +32,6 @@ describe("buildDeepLink", () => {
   });
 
   it("links nowhere for a non-http(s) record URL", () => {
-    expect(buildDeepLink({ id: "fb-1", url: "javascript:alert(1)" }, "tcpinpoint", "https://acme.test")).toBeNull();
+    expect(buildDeepLink({ id: "fb-1", url: "javascript:alert(1)" }, "pinpoint", "https://acme.test")).toBeNull();
   });
 });

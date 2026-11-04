@@ -1,4 +1,4 @@
-# @tc-pinpoint/adapter-memory
+# @pinpoint/adapter-memory
 
 An in-memory store, used by the tests.
 

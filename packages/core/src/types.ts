@@ -5,10 +5,10 @@ import { type AssertEqual, type DeepReadonly, hasOwn, type Prettify, type Serial
 // ---------------------------------------------------------------------------
 
 /** FAB anchor — bottom-corner placement supported by the widget. */
-export type TcPinpointPosition = "bottom-right" | "bottom-left";
+export type PinPointPosition = "bottom-right" | "bottom-left";
 
 /** Visual theme — `auto` resolves to `light` or `dark` via system preference. */
-export type TcPinpointTheme = "light" | "dark" | "auto";
+export type PinPointTheme = "light" | "dark" | "auto";
 
 /** Built-in UI locales shipped with the widget. */
 export const BUILTIN_LOCALES = ["en", "fr", "de", "es", "it", "pt", "ru", "ja", "ko"] as const;
@@ -19,14 +19,14 @@ export type BuiltinLocale = (typeof BUILTIN_LOCALES)[number];
  * literal strings so editors auto-complete them, but arbitrary BCP-47 tags
  * are also accepted (custom dictionaries registered via `registerLocale`).
  */
-export type TcPinpointLocale = BuiltinLocale | (string & {});
+export type PinPointLocale = BuiltinLocale | (string & {});
 
 /**
- * Reasons reported through `TcPinpointConfig.onSkip` — production environment,
+ * Reasons reported through `PinPointConfig.onSkip` — production environment,
  * viewport narrower than `minViewportWidth` (`"mobile"`), or server-side
  * rendering (no `window`/`document`).
  */
-export type TcPinpointSkipReason = "production" | "mobile" | "ssr";
+export type PinPointSkipReason = "production" | "mobile" | "ssr";
 
 /** Per-channel + per-buffer-size diagnostics configuration. */
 export interface DiagnosticsCaptureOptions {
@@ -39,7 +39,7 @@ export interface DiagnosticsCaptureOptions {
 }
 
 /** Identity payload supplied by the host application — bypasses the modal. */
-export interface TcPinpointIdentity {
+export interface PinPointIdentity {
   name: string;
   email: string;
 }
@@ -52,8 +52,8 @@ export interface TcPinpointIdentity {
 export const IDENTITY_FIELD_MAX_LENGTH = 200;
 
 /** Deep-link configuration — controls how a feedback id is read from the URL. */
-export interface TcPinpointDeepLinkOptions {
-  /** Query parameter name carrying the feedback id. Defaults to `"tcpinpoint"`. */
+export interface PinPointDeepLinkOptions {
+  /** Query parameter name carrying the feedback id. Defaults to `"pinpoint"`. */
   param?: string | undefined;
 }
 
@@ -62,13 +62,13 @@ export interface TcPinpointDeepLinkOptions {
  * copy, typed read-only all the way down. Type your own helpers with it — a
  * `FeedbackResponse` parameter does not accept the frozen copy.
  */
-export type TcPinpointPanelActionFeedback = DeepReadonly<FeedbackResponse>;
+export type PinPointPanelActionFeedback = DeepReadonly<FeedbackResponse>;
 
 /**
  * Helpers passed to a panel action's `onAction` as its second argument.
  * Both do nothing once the widget has been destroyed.
  */
-export interface TcPinpointPanelActionContext {
+export interface PinPointPanelActionContext {
   /**
    * Re-fetch the panel list and markers, then re-render the detail view with
    * the updated feedback — or go back to the list when it no longer matches
@@ -81,11 +81,11 @@ export interface TcPinpointPanelActionContext {
 }
 
 /**
- * Fields shared by both kinds of {@link TcPinpointPanelAction}.
+ * Fields shared by both kinds of {@link PinPointPanelAction}.
  *
- * Do not use this type directly — use {@link TcPinpointPanelAction}.
+ * Do not use this type directly — use {@link PinPointPanelAction}.
  */
-export interface TcPinpointPanelActionBase {
+export interface PinPointPanelActionBase {
   /** Stable, unique identifier — becomes `data-action-id` on the rendered control. */
   id: string;
   /**
@@ -105,11 +105,11 @@ export interface TcPinpointPanelActionBase {
    * for that feedback. Defaults to always visible. A throw hides the action
    * and is reported through `onError`.
    */
-  visible?: ((feedback: TcPinpointPanelActionFeedback) => boolean) | undefined;
+  visible?: ((feedback: PinPointPanelActionFeedback) => boolean) | undefined;
 }
 
 /** A panel action rendered as a button that runs host code. */
-export interface TcPinpointPanelButtonAction extends TcPinpointPanelActionBase {
+export interface PinPointPanelButtonAction extends PinPointPanelActionBase {
   /**
    * Invoked on click. While a returned promise is pending the detail view's
    * action buttons are disabled and the clicked button shows a spinner —
@@ -118,13 +118,13 @@ export interface TcPinpointPanelButtonAction extends TcPinpointPanelActionBase {
    * Throws and rejections are reported through `onError` and restore the
    * buttons; the detail view stays open either way.
    */
-  onAction: (feedback: TcPinpointPanelActionFeedback, context: TcPinpointPanelActionContext) => void | Promise<void>;
+  onAction: (feedback: PinPointPanelActionFeedback, context: PinPointPanelActionContext) => void | Promise<void>;
   /** Not available on a button action — use either `onAction` or `href`, never both. */
   href?: never;
 }
 
 /** A panel action rendered as a link. */
-export interface TcPinpointPanelLinkAction extends TcPinpointPanelActionBase {
+export interface PinPointPanelLinkAction extends PinPointPanelActionBase {
   /**
    * Link target — a URL, or a function building one from the feedback.
    * Relative URLs resolve against the page. Only `http:`, `https:` and
@@ -133,7 +133,7 @@ export interface TcPinpointPanelLinkAction extends TcPinpointPanelActionBase {
    * returning one hides the action and is reported through `onError`. Web
    * links open in a new tab with `rel="noopener noreferrer"`.
    */
-  href: string | ((feedback: TcPinpointPanelActionFeedback) => string);
+  href: string | ((feedback: PinPointPanelActionFeedback) => string);
   /** Not available on a link action — use either `onAction` or `href`, never both. */
   onAction?: never;
 }
@@ -148,28 +148,28 @@ export interface TcPinpointPanelLinkAction extends TcPinpointPanelActionBase {
  * forking the panel. Callbacks receive a detached, deeply frozen copy of
  * the feedback: read it freely, it can never alter what the panel displays.
  */
-export type TcPinpointPanelAction = TcPinpointPanelButtonAction | TcPinpointPanelLinkAction;
+export type PinPointPanelAction = PinPointPanelButtonAction | PinPointPanelLinkAction;
 
 /**
  * Extra request headers for HTTP mode — a static map, or a factory (sync or
  * async) invoked once per request to produce fresh values (e.g. a short-lived
  * session token).
  */
-export type TcPinpointHeadersOption =
+export type PinPointHeadersOption =
   | Record<string, string>
   | (() => Record<string, string> | Promise<Record<string, string>>);
 
 /**
  * Options shared by both widget modes (HTTP and direct store).
  *
- * Do not use this type directly — use {@link TcPinpointConfig}, the
+ * Do not use this type directly — use {@link PinPointConfig}, the
  * discriminated union that adds the mode-specific fields.
  */
-export interface TcPinpointBaseConfig {
+export interface PinPointBaseConfig {
   /** Required — project identifier used to scope feedbacks */
   projectName: string;
   /** FAB position — defaults to 'bottom-right' */
-  position?: TcPinpointPosition | undefined;
+  position?: PinPointPosition | undefined;
   /**
    * Show the "toggle markers visibility" item in the FAB radial menu.
    * Defaults to `true` (current behavior). Set to `false` to hide that
@@ -208,9 +208,9 @@ export interface TcPinpointBaseConfig {
   /** Enable debug logging of lifecycle events — defaults to false */
   debug?: boolean | undefined;
   /** Color theme — defaults to 'light' */
-  theme?: TcPinpointTheme | undefined;
+  theme?: PinPointTheme | undefined;
   /** UI locale — defaults to 'en'. Built-in: en, fr, de, es, it, pt (Brazilian), ru, ja, ko. Any other string falls back to English. */
-  locale?: TcPinpointLocale | undefined;
+  locale?: PinPointLocale | undefined;
   /**
    * Returns the current page scope for annotations and panel filtering.
    * Called on initial markers load and on `instance.refresh()`.
@@ -239,10 +239,10 @@ export interface TcPinpointBaseConfig {
    * - it embeds page content in the feedback (privacy/GDPR consideration —
    *   inform end users in your widget host UI when enabling).
    *
-   * `html2canvas-pro` ships as a regular dependency of `@tc-pinpoint/widget` so the
+   * `html2canvas-pro` ships as a regular dependency of `@pinpoint/widget` so the
    * dynamic import always resolves; you don't need to install anything extra.
    *
-   * **Masking sensitive elements:** add `data-tcpinpoint-ignore="true"` to any
+   * **Masking sensitive elements:** add `data-pinpoint-ignore="true"` to any
    * element you do NOT want captured (password fields, credit-card forms,
    * API tokens shown in the UI, etc.). The capture predicate skips matching
    * elements *and their descendants*. Do this BEFORE turning on screenshots
@@ -299,7 +299,7 @@ export interface TcPinpointBaseConfig {
    */
   captureDiagnostics?: boolean | DiagnosticsCaptureOptions | undefined;
   /** Called when the widget is skipped (production mode, viewport under `minViewportWidth`, SSR — no DOM) */
-  onSkip?: (reason: TcPinpointSkipReason) => void;
+  onSkip?: (reason: PinPointSkipReason) => void;
   /**
    * Auto-focus a specific annotation when its ID appears in the URL query
    * string. Lets hosts deeplink directly into a feedback from external
@@ -313,7 +313,7 @@ export interface TcPinpointBaseConfig {
    *
    * - `false` / `undefined` (default): no URL parsing. Existing behavior
    *   unchanged, no host URL inspection.
-   * - `true`: enabled with default query parameter name `tcpinpoint`.
+   * - `true`: enabled with default query parameter name `pinpoint`.
    * - object: enabled with a custom parameter name. Use this to avoid
    *   clashes with host-app query keys.
    *
@@ -323,7 +323,7 @@ export interface TcPinpointBaseConfig {
    * Hosts that need re-focus on route change can call
    * `instance.focusFeedback(id)` explicitly.
    */
-  deepLink?: boolean | TcPinpointDeepLinkOptions | undefined;
+  deepLink?: boolean | PinPointDeepLinkOptions | undefined;
   /**
    * Automatically re-fetch feedbacks when the page changes during client-side
    * (SPA) navigation. Enabled by default.
@@ -363,15 +363,15 @@ export interface TcPinpointBaseConfig {
    * identity updates after sign-in/sign-out should currently remount the
    * widget (e.g. via a React `key` on the wrapping component).
    */
-  identity?: TcPinpointIdentity | undefined;
+  identity?: PinPointIdentity | undefined;
   /**
    * Host-defined actions rendered in the feedback detail view, below the
    * built-in Resolve and Delete buttons. Read once when the panel loads:
    * entries without a non-empty `id` and `label`, without exactly one of
    * `onAction` / `href`, with an unsafe static `href`, or reusing an earlier
-   * `id` are skipped with a console warning. See {@link TcPinpointPanelAction}.
+   * `id` are skipped with a console warning. See {@link PinPointPanelAction}.
    */
-  panelActions?: readonly TcPinpointPanelAction[] | undefined;
+  panelActions?: readonly PinPointPanelAction[] | undefined;
   /**
    * Reviewer mode: hide the actions that triage feedback — resolve, reopen,
    * delete, the bulk actions, "Delete all" — and keep creating, browsing
@@ -393,8 +393,8 @@ export interface TcPinpointBaseConfig {
   /**
    * Called when a feedback API call fails.
    *
-   * The widget always emits a `TcPinpointError` (or a subclass:
-   * `TcPinpointNetworkError`, `TcPinpointValidationError`, `TcPinpointAuthError`)
+   * The widget always emits a `PinPointError` (or a subclass:
+   * `PinPointNetworkError`, `PinPointValidationError`, `PinPointAuthError`)
    * for HTTP-mode failures — host apps can `instanceof` to drive retry
    * logic, or read `error.code` (`"NETWORK" | "VALIDATION" | "AUTH" |
    * "SERVER"`) and `error.retryable` — and an `AUTH` error's `status`
@@ -417,10 +417,10 @@ export interface TcPinpointBaseConfig {
 
 /**
  * HTTP mode — the widget talks to a server endpoint backed by a store
- * adapter (e.g. `@tc-pinpoint/adapter-prisma` request handlers).
+ * adapter (e.g. `@pinpoint/adapter-prisma` request handlers).
  */
-export interface TcPinpointHttpConfig extends TcPinpointBaseConfig {
-  /** HTTP endpoint that receives feedbacks (e.g. '/api/tcpinpoint'). */
+export interface PinPointHttpConfig extends PinPointBaseConfig {
+  /** HTTP endpoint that receives feedbacks (e.g. '/api/pinpoint'). */
   endpoint: string;
   /**
    * Convenience auth for HTTP mode — sent as `Authorization: Bearer <apiKey>`
@@ -441,22 +441,22 @@ export interface TcPinpointHttpConfig extends TcPinpointBaseConfig {
    * throws, rejects, or does not settle within 10 s fails the request like a
    * network error.
    */
-  headers?: TcPinpointHeadersOption | undefined;
+  headers?: PinPointHeadersOption | undefined;
   /** Not available in HTTP mode — use either `endpoint` or `store`, never both. */
   store?: never;
 }
 
 /**
- * Store mode — the widget talks to a `TcPinpointStore` directly in the
+ * Store mode — the widget talks to a `PinPointStore` directly in the
  * browser, no server needed (demos, prototypes, localStorage persistence).
  */
-export interface TcPinpointStoreConfig extends TcPinpointBaseConfig {
+export interface PinPointStoreConfig extends PinPointBaseConfig {
   /**
    * Direct store for client-side mode. Bypasses HTTP entirely. A send stops
    * waiting on `createFeedback` after 30 s (the call itself cannot be
    * cancelled), so a network-backed store should bound its own calls.
    */
-  store: TcPinpointStore;
+  store: PinPointStore;
   /** Not available in store mode — use either `endpoint` or `store`, never both. */
   endpoint?: never;
   /** HTTP-mode only — meaningless without an `endpoint`. */
@@ -473,10 +473,10 @@ export interface TcPinpointStoreConfig extends TcPinpointBaseConfig {
  * client-side mode) — never both, never neither. Invalid combinations are
  * compile errors instead of runtime warnings.
  */
-export type TcPinpointConfig = TcPinpointHttpConfig | TcPinpointStoreConfig;
+export type PinPointConfig = PinPointHttpConfig | PinPointStoreConfig;
 
-/** Instance returned by initTcPinpoint() with lifecycle methods. */
-export interface TcPinpointInstance {
+/** Instance returned by initPinPoint() with lifecycle methods. */
+export interface PinPointInstance {
   /** Remove the widget from the DOM and clean up all listeners. */
   destroy: () => void;
   /** Open the panel programmatically */
@@ -497,31 +497,31 @@ export interface TcPinpointInstance {
    */
   focusFeedback: (feedbackId: string) => boolean;
   /** Subscribe to a public widget event */
-  on: <K extends keyof TcPinpointPublicEvents>(
+  on: <K extends keyof PinPointPublicEvents>(
     event: K,
-    listener: TcPinpointPublicEventListener<K>,
-  ) => TcPinpointUnsubscribe;
+    listener: PinPointPublicEventListener<K>,
+  ) => PinPointUnsubscribe;
   /** Unsubscribe from a public widget event */
-  off: <K extends keyof TcPinpointPublicEvents>(event: K, listener: TcPinpointPublicEventListener<K>) => void;
+  off: <K extends keyof PinPointPublicEvents>(event: K, listener: PinPointPublicEventListener<K>) => void;
 }
 
-/** Listener signature for a single `TcPinpointPublicEvents` key. */
-export type TcPinpointPublicEventListener<K extends keyof TcPinpointPublicEvents> = (
-  ...args: TcPinpointPublicEvents[K]
+/** Listener signature for a single `PinPointPublicEvents` key. */
+export type PinPointPublicEventListener<K extends keyof PinPointPublicEvents> = (
+  ...args: PinPointPublicEvents[K]
 ) => void;
 
-/** Disposer returned by `TcPinpointInstance.on` — call once to detach the listener. */
-export type TcPinpointUnsubscribe = () => void;
+/** Disposer returned by `PinPointInstance.on` — call once to detach the listener. */
+export type PinPointUnsubscribe = () => void;
 
-/** Events exposed to consumers via TcPinpointInstance.on / .off */
-export interface TcPinpointPublicEvents {
+/** Events exposed to consumers via PinPointInstance.on / .off */
+export interface PinPointPublicEvents {
   "feedback:sent": [FeedbackResponse];
   "feedback:deleted": [FeedbackResponse["id"]];
   /** A reply was posted from the panel's discussion thread. */
   "comment:added": [CommentResponse];
   /**
    * A feedback API call failed. Same payload contract as
-   * `TcPinpointConfig.onError` — a `TcPinpointError` subclass in HTTP mode,
+   * `PinPointConfig.onError` — a `PinPointError` subclass in HTTP mode,
    * possibly a raw `Error` in store mode.
    */
   "feedback:error": [Error];
@@ -571,7 +571,7 @@ export function isClosedStatus(status: FeedbackStatus): status is ClosedFeedback
 }
 
 /**
- * Page scope returned by `TcPinpointConfig.getPageScope()`.
+ * Page scope returned by `PinPointConfig.getPageScope()`.
  *
  * - `url`: concrete page identifier — usually `window.location.pathname`,
  *   used as the strict scope for marker rendering.
@@ -627,7 +627,7 @@ export interface FeedbackCreateInput {
   screenshotRegion?: ScreenshotRegion | null | undefined;
   /**
    * Optional console + failed-network snapshot captured by the widget when
-   * `TcPinpointConfig.captureDiagnostics` is enabled. Stored as JSON on
+   * `PinPointConfig.captureDiagnostics` is enabled. Stored as JSON on
    * `FeedbackRecord.diagnostics` so reviewers can replay the context.
    */
   diagnostics?: DiagnosticsSnapshot | null | undefined;
@@ -743,7 +743,7 @@ export interface FeedbackRecord {
   annotations: AnnotationRecord[];
   /**
    * Discussion thread, oldest first. A store that implements
-   * `TcPinpointStore.addComment` returns it on every record; a store without
+   * `PinPointStore.addComment` returns it on every record; a store without
    * comments may leave it out, which reads as an empty thread (HTTP handlers
    * send `[]`).
    */
@@ -842,7 +842,7 @@ export interface CommentRecord {
   createdAt: Date;
 }
 
-/** Input of `TcPinpointStore.addComment`. */
+/** Input of `PinPointStore.addComment`. */
 export interface CommentCreateInput {
   body: string;
   authorName: string;
@@ -1030,7 +1030,7 @@ export function flattenAnnotation(ann: AnnotationPayload): AnnotationCreateInput
 // ---------------------------------------------------------------------------
 
 /**
- * Outcome of `TcPinpointStore.createFeedbackIfAbsent` — the record plus whether
+ * Outcome of `PinPointStore.createFeedbackIfAbsent` — the record plus whether
  * this very call inserted it.
  */
 export interface FeedbackCreateOutcome {
@@ -1043,7 +1043,7 @@ export interface FeedbackCreateOutcome {
   created: boolean;
 }
 
-/** Paginated result returned by `TcPinpointStore.getFeedbacks`. */
+/** Paginated result returned by `PinPointStore.getFeedbacks`. */
 export interface FeedbackPage {
   feedbacks: FeedbackRecord[];
   total: number;
@@ -1054,7 +1054,7 @@ export interface FeedbackPage {
  *
  * Any adapter (Prisma, Drizzle, raw SQL, localStorage, etc.) implements this
  * interface. The HTTP handler and widget `StoreClient` operate against
- * `TcPinpointStore`, decoupled from the storage backend.
+ * `PinPointStore`, decoupled from the storage backend.
  *
  * ## Error contract
  *
@@ -1071,7 +1071,7 @@ export interface FeedbackPage {
  *   a phantom success. Detect it with `isStorePersistence`.
  * - Other methods should not throw on empty results — return empty arrays or `null`.
  */
-export interface TcPinpointStore {
+export interface PinPointStore {
   /** Create a feedback with its annotations. Idempotent on `clientId` — return existing record on duplicate, or throw `StoreDuplicateError`. Throws `StorePersistenceError` when the write cannot be persisted. */
   createFeedback(data: FeedbackCreateInput): Promise<FeedbackRecord>;
   /** Paginated query with optional filters. Returns empty array (not error) when no results. */
@@ -1148,7 +1148,7 @@ export interface FeedbackPayload {
   url: string;
   /**
    * Parameterized URL template (e.g. `/orders/:orderId`) supplied by
-   * `TcPinpointConfig.getPageScope()`. Null when the host did not provide one.
+   * `PinPointConfig.getPageScope()`. Null when the host did not provide one.
    */
   urlPattern?: string | null | undefined;
   viewport: string;
@@ -1160,7 +1160,7 @@ export interface FeedbackPayload {
   clientId: string;
   /**
    * Base64 JPEG `data:` URL of the annotated area. Captured by the widget
-   * when `enableScreenshot: true` is set in `TcPinpointConfig`. Null when
+   * when `enableScreenshot: true` is set in `PinPointConfig`. Null when
    * disabled or when capture failed silently.
    */
   screenshotDataUrl?: string | null | undefined;
@@ -1322,11 +1322,11 @@ export interface AnnotationPayload {
  */
 export type FeedbackResponse = Prettify<
   Serialized<Omit<FeedbackRecord, "clientId" | "comments">> & {
-    /** The thread, oldest first — always sent by `@tc-pinpoint/server`, absent from servers that predate comments. */
+    /** The thread, oldest first — always sent by `@pinpoint/server`, absent from servers that predate comments. */
     comments?: CommentResponse[] | undefined;
     /**
      * What the requester may do with this feedback — always sent by
-     * `@tc-pinpoint/server`. Absent from servers that predate it, and in store
+     * `@pinpoint/server`. Absent from servers that predate it, and in store
      * mode: nothing is refused then.
      */
     permissions?: FeedbackPermissions | undefined;
@@ -1369,12 +1369,12 @@ export type AnnotationResponse = Prettify<Serialized<AnnotationRecord>>;
 export type CommentResponse = Prettify<Serialized<Omit<CommentRecord, "clientId">>>;
 
 /** What the store behind an endpoint supports — advertised on every list response. */
-export interface TcPinpointCapabilities {
+export interface PinPointCapabilities {
   /** Whether comments can be posted: the store implements `addComment`. */
   comments: boolean;
   /**
    * Whether comments can be deleted: the store implements `deleteComment`.
-   * Sent by `@tc-pinpoint/server`; a client that does not delete (the widget)
+   * Sent by `@pinpoint/server`; a client that does not delete (the widget)
    * leaves it out.
    */
   deleteComments?: boolean | undefined;
@@ -1384,8 +1384,8 @@ export interface TcPinpointCapabilities {
 export interface FeedbackResponseList {
   feedbacks: FeedbackResponse[];
   total: number;
-  /** Always sent by `@tc-pinpoint/server` — absent from servers that predate it. */
-  capabilities?: TcPinpointCapabilities | undefined;
-  /** Always sent by `@tc-pinpoint/server` — absent from servers that predate it. */
+  /** Always sent by `@pinpoint/server` — absent from servers that predate it. */
+  capabilities?: PinPointCapabilities | undefined;
+  /** Always sent by `@pinpoint/server` — absent from servers that predate it. */
   permissions?: FeedbackListPermissions | undefined;
 }

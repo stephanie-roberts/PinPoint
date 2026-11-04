@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createContext, runInContext } from "node:vm";
-import type { FeedbackRecord } from "@tc-pinpoint/core";
+import type { FeedbackRecord } from "@pinpoint/core";
 import { build } from "tsup";
 import { beforeAll, describe, expect, it } from "vitest";
 import * as zod from "zod";
@@ -21,7 +21,7 @@ const ENTRY = fileURLToPath(new URL("../src/index.ts", import.meta.url));
 
 /** The package bundle as CommonJS, like its published `index.cjs`. */
 async function bundleServer(): Promise<string> {
-  const outDir = await mkdtemp(join(tmpdir(), "tcpinpoint-server-"));
+  const outDir = await mkdtemp(join(tmpdir(), "pinpoint-server-"));
   try {
     await build({
       entry: { index: ENTRY },
@@ -29,7 +29,7 @@ async function bundleServer(): Promise<string> {
       platform: "neutral",
       target: "es2022",
       outDir,
-      noExternal: [/^@tcpinpoint\/core(\/|$)/],
+      noExternal: [/^@pinpoint\/core(\/|$)/],
       external: ["zod"],
       config: false,
       silent: true,
@@ -72,7 +72,7 @@ function loadInWebRuntime(code: string): typeof Server {
 }
 
 /** A minimal store over an array. */
-function arrayStore(): Server.TcPinpointStore {
+function arrayStore(): Server.PinPointStore {
   const records: FeedbackRecord[] = [];
   return {
     async createFeedback({ screenshotDataUrl, annotations: _annotations, ...data }) {
@@ -110,7 +110,7 @@ function arrayStore(): Server.TcPinpointStore {
   };
 }
 
-describe("@tc-pinpoint/server outside Node", () => {
+describe("@pinpoint/server outside Node", () => {
   let server: typeof Server;
 
   beforeAll(async () => {
@@ -118,8 +118,8 @@ describe("@tc-pinpoint/server outside Node", () => {
   }, 30_000);
 
   it("serves a create, a list and an API-key update with Web APIs only", async () => {
-    const endpoint = "https://example.com/api/tcpinpoint";
-    const handler = server.createTcPinpointHandler({ store: arrayStore(), apiKey: "secret-key" });
+    const endpoint = "https://example.com/api/pinpoint";
+    const handler = server.createPinPointHandler({ store: arrayStore(), apiKey: "secret-key" });
 
     const created = await handler.POST(
       new Request(endpoint, { method: "POST", body: JSON.stringify(validPayloadNoAnnotations) }),
@@ -147,10 +147,10 @@ describe("@tc-pinpoint/server outside Node", () => {
   });
 
   it("starts without an apiKey where there is no process.env to read", () => {
-    expect(() => server.createTcPinpointHandler({ store: arrayStore() })).not.toThrow();
+    expect(() => server.createPinPointHandler({ store: arrayStore() })).not.toThrow();
   });
 
   it("exports only the handler and webhook dispatch as values: schemas and payload builders stay internal", () => {
-    expect(Object.keys(server).sort()).toEqual(["createTcPinpointHandler", "dispatchWebhook", "dispatchWebhooks"]);
+    expect(Object.keys(server).sort()).toEqual(["createPinPointHandler", "dispatchWebhook", "dispatchWebhooks"]);
   });
 });

@@ -1,13 +1,13 @@
-import { isStoreNotFound, type TcPinpointStore, toFeedbackUpdate } from "@tc-pinpoint/core";
+import { isStoreNotFound, type PinPointStore, toFeedbackUpdate } from "@pinpoint/core";
 import { ERROR_MESSAGES } from "../constants.js";
-import type { TcPinpointLifecycleHooks } from "../options.js";
+import type { PinPointLifecycleHooks } from "../options.js";
 import type { Pipeline } from "../pipeline.js";
 import { feedbackPatchSchema } from "../validation.js";
 
 interface UpdateFeedbackDependencies<Principal> {
-  store: TcPinpointStore;
+  store: PinPointStore;
   pipeline: Pipeline<Principal>;
-  onUpdated: TcPinpointLifecycleHooks<Principal>["onUpdated"];
+  onUpdated: PinPointLifecycleHooks<Principal>["onUpdated"];
 }
 
 /** `PATCH` — change a feedback's status. */
@@ -30,7 +30,7 @@ export function updateFeedbackOperation<Principal>({
       if (refusal) return refusal;
 
       // Verify project ownership before updating. Any store implementing
-      // the optional TcPinpointStore.verifyProjectOwnership gets the check;
+      // the optional PinPointStore.verifyProjectOwnership gets the check;
       // duck-typing instead of `instanceof` keeps it bundling-safe and
       // open to third-party adapters. The handler refuses to start with a
       // custom `authorize` over a store without it.
@@ -52,7 +52,7 @@ export function updateFeedbackOperation<Principal>({
       return pipeline.json(scope, await pipeline.present(scope, feedback));
     } catch (error) {
       if (isStoreNotFound(error)) return pipeline.error(scope, 404, ERROR_MESSAGES.feedbackNotFound);
-      return pipeline.fail(scope, "[tcpinpoint] Failed to update feedback", error);
+      return pipeline.fail(scope, "[pinpoint] Failed to update feedback", error);
     }
   };
 }

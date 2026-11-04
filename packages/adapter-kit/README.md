@@ -1,4 +1,4 @@
-# @tc-pinpoint/adapter-kit
+# @pinpoint/adapter-kit
 
 Turns a load/save pair into a complete store. PinPoint's JSON-file store is built on it.
 

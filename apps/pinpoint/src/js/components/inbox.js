@@ -30,8 +30,8 @@ const TABS = [
 ];
 
 const PAGE_SIZE = 50;
-const TOKEN_STORAGE = "tcpinpoint:inbox-session";
-const LAST_STORAGE = "tcpinpoint:inbox-last";
+const TOKEN_STORAGE = "pinpoint:inbox-session";
+const LAST_STORAGE = "pinpoint:inbox-last";
 
 // Signed-in sessions last 30 days, so the token is kept in localStorage.
 function readStored(key) {
@@ -118,7 +118,7 @@ const Inbox = () => ({
   requestId: 0,
 
   async init() {
-    this.api = createApi({ endpoint: "/api/tcpinpoint", getKey: () => this.token });
+    this.api = createApi({ endpoint: "/api/pinpoint", getKey: () => this.token });
     this.initialParams = new URLSearchParams(window.location.search);
 
     this.$watch("type", () => this.refresh());
@@ -655,7 +655,7 @@ const Inbox = () => ({
     if (!item) return null;
     const url = parseHttpUrl(item.url, this.siteFor(item));
     if (!url) return null;
-    url.searchParams.set("tcpinpoint", item.id);
+    url.searchParams.set("pinpoint", item.id);
     return url.toString();
   },
 

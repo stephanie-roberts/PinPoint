@@ -1,5 +1,5 @@
 {
-  "name": "@tc-pinpoint/adapter-kit",
+  "name": "@pinpoint/adapter-kit",
   "version": "0.1.2",
   "description": "Everything needed to build and conformance-test a custom PinPoint store adapter",
   "type": "module",
@@ -38,7 +38,7 @@
     "clean": "rm -rf dist"
   },
   "keywords": [
-    "tcpinpoint",
+    "pinpoint",
     "adapter",
     "store",
     "conformance",
@@ -63,6 +63,6 @@
     }
   },
   "devDependencies": {
-    "@tc-pinpoint/core": "*"
+    "@pinpoint/core": "*"
   }
 }

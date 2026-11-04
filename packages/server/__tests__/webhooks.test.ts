@@ -1,7 +1,7 @@
-import { MemoryStore } from "@tc-pinpoint/adapter-memory";
-import { createCollectionStore, type FeedbackRecord } from "@tc-pinpoint/core";
+import { MemoryStore } from "@pinpoint/adapter-memory";
+import { createCollectionStore, type FeedbackRecord } from "@pinpoint/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createTcPinpointHandler } from "../src/index.js";
+import { createPinPointHandler } from "../src/index.js";
 import {
   buildWebhookPayload,
   dispatchWebhook,
@@ -111,13 +111,13 @@ describe("buildWebhookPayload", () => {
   });
 
   it("dispatched from onUpdated, sends a thread without its clientIds", async () => {
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       apiKey: "k",
       hooks: { onUpdated: (feedback) => dispatchWebhooks([{ url: "https://receiver.example/hook" }], feedback) },
     });
     const send = (method: string, body: unknown) =>
-      new Request("http://localhost/api/tcpinpoint", {
+      new Request("http://localhost/api/pinpoint", {
         method,
         headers: { "Content-Type": "application/json", Authorization: "Bearer k" },
         body: JSON.stringify(body),
@@ -576,12 +576,12 @@ describe("dispatchWebhooks", () => {
 // Handler integration — webhook fires after successful POST
 // ---------------------------------------------------------------------------
 
-describe("createTcPinpointHandler — webhooks option", () => {
+describe("createPinPointHandler — webhooks option", () => {
   it("dispatches a single webhook after a successful POST", async () => {
     const webhook: WebhookConfig = { url: "https://hooks.example.com" };
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), webhooks: webhook });
+    const handler = createPinPointHandler({ store: new MemoryStore(), webhooks: webhook });
 
-    const req = new Request("http://localhost/api/tcpinpoint", {
+    const req = new Request("http://localhost/api/pinpoint", {
       method: "POST",
       body: JSON.stringify(validPayloadNoAnnotations),
     });
@@ -593,7 +593,7 @@ describe("createTcPinpointHandler — webhooks option", () => {
   });
 
   it("dispatches every webhook in an array config", async () => {
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       webhooks: [
         { url: "https://slack.example.com", type: "slack" },
@@ -601,7 +601,7 @@ describe("createTcPinpointHandler — webhooks option", () => {
       ],
     });
 
-    const req = new Request("http://localhost/api/tcpinpoint", {
+    const req = new Request("http://localhost/api/pinpoint", {
       method: "POST",
       body: JSON.stringify(validPayloadNoAnnotations),
     });
@@ -617,7 +617,7 @@ describe("createTcPinpointHandler — webhooks option", () => {
     "refuses to start with a webhook timeoutMs of %s, naming the webhook by its origin only",
     (timeoutMs) => {
       const create = () =>
-        createTcPinpointHandler({
+        createPinPointHandler({
           store: new MemoryStore(),
           webhooks: [
             { url: "https://hooks.example.com" },
@@ -626,14 +626,14 @@ describe("createTcPinpointHandler — webhooks option", () => {
         });
 
       expect(create).toThrow(
-        `[tcpinpoint] createTcPinpointHandler: webhook to https://hooks.slack.com: timeoutMs must be a positive integer of at most 2147483647, got ${timeoutMs}.`,
+        `[pinpoint] createPinPointHandler: webhook to https://hooks.slack.com: timeoutMs must be a positive integer of at most 2147483647, got ${timeoutMs}.`,
       );
     },
   );
 
   it("starts with the longest timeoutMs a timer holds", () => {
     expect(() =>
-      createTcPinpointHandler({
+      createPinPointHandler({
         store: new MemoryStore(),
         webhooks: { url: "https://hooks.example.com", timeoutMs: 2 ** 31 - 1 },
       }),
@@ -641,12 +641,12 @@ describe("createTcPinpointHandler — webhooks option", () => {
   });
 
   it("does not fire webhooks when POST fails validation", async () => {
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       webhooks: { url: "https://hooks.example.com" },
     });
 
-    const req = new Request("http://localhost/api/tcpinpoint", {
+    const req = new Request("http://localhost/api/pinpoint", {
       method: "POST",
       body: JSON.stringify({ type: "bug" }), // missing required fields
     });
@@ -662,7 +662,7 @@ describe("createTcPinpointHandler — webhooks option", () => {
 // Handler integration — replays never notify twice
 // ---------------------------------------------------------------------------
 
-describe("createTcPinpointHandler — webhooks on clientId replays", () => {
+describe("createPinPointHandler — webhooks on clientId replays", () => {
   /**
    * An idempotent collection store on an async backend (KV, remote storage):
    * every `load`/`persist` yields, so overlapping requests both pass the
@@ -685,9 +685,9 @@ describe("createTcPinpointHandler — webhooks on clientId replays", () => {
     });
   }
 
-  function postClientId(handler: ReturnType<typeof createTcPinpointHandler>, clientId: string) {
+  function postClientId(handler: ReturnType<typeof createPinPointHandler>, clientId: string) {
     return handler.POST(
-      new Request("http://localhost/api/tcpinpoint", {
+      new Request("http://localhost/api/pinpoint", {
         method: "POST",
         body: JSON.stringify({ ...validPayloadNoAnnotations, clientId }),
       }),
@@ -707,10 +707,10 @@ describe("createTcPinpointHandler — webhooks on clientId replays", () => {
       },
       generateId: () => `id-${feedbacks.length + 1}`,
     });
-    const handler = createTcPinpointHandler({ store, webhooks: { url: "https://hooks.example.com" } });
+    const handler = createPinPointHandler({ store, webhooks: { url: "https://hooks.example.com" } });
     const post = () =>
       handler.POST(
-        new Request("http://localhost/api/tcpinpoint", {
+        new Request("http://localhost/api/pinpoint", {
           method: "POST",
           body: JSON.stringify({ ...validPayloadNoAnnotations, clientId: "replayed-once" }),
         }),
@@ -730,7 +730,7 @@ describe("createTcPinpointHandler — webhooks on clientId replays", () => {
     // report its inserts), the idempotent store resolves the second create
     // like a fresh insert: only the handler's in-flight coalescing tells.
     const { createFeedbackIfAbsent: _reportsInserts, ...store } = asyncCollectionStore();
-    const handler = createTcPinpointHandler({ store, webhooks: { url: "https://hooks.example.com" } });
+    const handler = createPinPointHandler({ store, webhooks: { url: "https://hooks.example.com" } });
     const post = () => postClientId(handler, "overlapping");
 
     const [first, second] = await Promise.all([post(), post()]);
@@ -749,7 +749,7 @@ describe("createTcPinpointHandler — webhooks on clientId replays", () => {
     // own report of which call inserted the record keeps the second request
     // from notifying.
     const store = asyncCollectionStore();
-    const processHandler = () => createTcPinpointHandler({ store, webhooks: { url: "https://hooks.example.com" } });
+    const processHandler = () => createPinPointHandler({ store, webhooks: { url: "https://hooks.example.com" } });
 
     const [first, second] = await Promise.all([
       postClientId(processHandler(), "cross-process"),
@@ -769,10 +769,10 @@ describe("createTcPinpointHandler — webhooks on clientId replays", () => {
 // Handler integration — deliveries handed to the runtime
 // ---------------------------------------------------------------------------
 
-describe("createTcPinpointHandler — waitUntil", () => {
-  const post = (handler: ReturnType<typeof createTcPinpointHandler>) =>
+describe("createPinPointHandler — waitUntil", () => {
+  const post = (handler: ReturnType<typeof createPinPointHandler>) =>
     handler.POST(
-      new Request("http://localhost/api/tcpinpoint", {
+      new Request("http://localhost/api/pinpoint", {
         method: "POST",
         body: JSON.stringify(validPayloadNoAnnotations),
       }),
@@ -782,7 +782,7 @@ describe("createTcPinpointHandler — waitUntil", () => {
     let deliver: (response: Response) => void = () => {};
     fetchSpy.mockReturnValue(new Promise<Response>((resolve) => (deliver = resolve)));
     const handedOff: Promise<unknown>[] = [];
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       webhooks: { url: "https://hooks.example.com" },
       waitUntil: (promise) => handedOff.push(promise),
@@ -803,8 +803,8 @@ describe("createTcPinpointHandler — waitUntil", () => {
   it("is not called for a replay, nor without webhooks", async () => {
     const waitUntil = vi.fn();
     const store = new MemoryStore();
-    const withWebhooks = createTcPinpointHandler({ store, webhooks: { url: "https://hooks.example.com" }, waitUntil });
-    const withoutWebhooks = createTcPinpointHandler({ store: new MemoryStore(), waitUntil });
+    const withWebhooks = createPinPointHandler({ store, webhooks: { url: "https://hooks.example.com" }, waitUntil });
+    const withoutWebhooks = createPinPointHandler({ store: new MemoryStore(), waitUntil });
 
     await post(withWebhooks);
     await post(withWebhooks);
@@ -816,7 +816,7 @@ describe("createTcPinpointHandler — waitUntil", () => {
   it("still answers 201 and delivers when waitUntil throws", async () => {
     const logger = { error: vi.fn() };
     const failure = new Error("after() called outside a request scope");
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       webhooks: { url: "https://hooks.example.com" },
       logger,
@@ -829,12 +829,12 @@ describe("createTcPinpointHandler — waitUntil", () => {
 
     expect(response.status).toBe(201);
     const { id } = (await response.json()) as FeedbackRecord;
-    expect(logger.error).toHaveBeenCalledWith("[tcpinpoint] waitUntil failed", {
+    expect(logger.error).toHaveBeenCalledWith("[pinpoint] waitUntil failed", {
       error: failure,
       feedbackId: id,
       projectName: validPayloadNoAnnotations.projectName,
       method: "POST",
-      path: "/api/tcpinpoint",
+      path: "/api/pinpoint",
     });
     await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
   });

@@ -154,7 +154,7 @@ Add these values to `apps/pinpoint/.env`:
 
 ```dotenv
 POSTMARK_SERVER_TOKEN=your-server-api-token
-TC_PINPOINT_EMAIL_FROM=pinpoint@example.com
+PINPOINT_EMAIL_FROM=pinpoint@example.com
 ```
 
 Restart the server after changing `.env`. Sign-in codes and notifications will then be sent by email.
@@ -168,7 +168,7 @@ Clients can't access the server on your Mac through `localhost`. For shared use,
 3. Set the start command to `npm start`.
 4. Configure a persistent disk for the app's data folder. The default is `apps/pinpoint/data`; the exact mount path depends on the host's working directory.
 5. Add your environment variables, including the Postmark token and verified sender address. The live server requires a Postmark token.
-6. If the host uses a trusted reverse proxy, set `TC_PINPOINT_TRUST_PROXY=true`.
+6. If the host uses a trusted reverse proxy, set `PINPOINT_TRUST_PROXY=true`.
 7. Open the live inbox, add your sites and use the installation code generated there.
 
 Back up the data folder regularly. It contains saved feedback, sites, assignments and sessions. A deployment without persistent storage can lose these files when the app is redeployed or its instance is replaced.
@@ -180,10 +180,10 @@ Settings are in `apps/pinpoint/.env`. See `.env.example` for the full list and n
 | Setting | Purpose | Default |
 |---|---|---|
 | `POSTMARK_SERVER_TOKEN` | Sends sign-in codes and notification emails. Required when live. | Empty |
-| `TC_PINPOINT_EMAIL_FROM` | Sender address verified in Postmark. Required once `POSTMARK_SERVER_TOKEN` is set. | None |
-| `TC_PINPOINT_TEAM_DOMAINS` | Email domains treated as team members, separated by commas. Set this to your own domain. | `example.com` |
-| `TC_PINPOINT_TRUST_PROXY` | Trusts the hosting proxy for visitor IPs and HTTPS information. | `false` |
-| `TC_PINPOINT_DATA` | Feedback file location. Related data is saved in the same folder. | `data/snags.json` |
+| `PINPOINT_EMAIL_FROM` | Sender address verified in Postmark. Required once `POSTMARK_SERVER_TOKEN` is set. | None |
+| `PINPOINT_TEAM_DOMAINS` | Email domains treated as team members, separated by commas. Set this to your own domain. | `example.com` |
+| `PINPOINT_TRUST_PROXY` | Trusts the hosting proxy for visitor IPs and HTTPS information. | `false` |
+| `PINPOINT_DATA` | Feedback file location. Related data is saved in the same folder. | `data/snags.json` |
 | `PORT` | Server port. | `3000` |
 
 ## Project structure

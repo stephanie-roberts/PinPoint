@@ -8,20 +8,20 @@ import {
   type FeedbackQuery,
   type FeedbackRecord,
   type FeedbackUpdateInput,
-  type TcPinpointStore,
-} from "@tc-pinpoint/core";
+  type PinPointStore,
+} from "@pinpoint/core";
 
-export type { TcPinpointStore } from "@tc-pinpoint/core";
+export type { PinPointStore } from "@pinpoint/core";
 export {
   isStorePersistence,
   StoreDuplicateError,
   StoreLimitError,
   StoreNotFoundError,
   StorePersistenceError,
-} from "@tc-pinpoint/core";
+} from "@pinpoint/core";
 
 /**
- * In-memory `TcPinpointStore` implementation.
+ * In-memory `PinPointStore` implementation.
  *
  * Zero dependencies, works in any JS environment (Node, Bun, Deno, browser,
  * Cloudflare Workers). Data lives in a plain array — lost on process restart.
@@ -37,13 +37,13 @@ export {
  *
  * @example
  * ```ts
- * import { MemoryStore } from '@tc-pinpoint/adapter-memory'
+ * import { MemoryStore } from '@pinpoint/adapter-memory'
  *
  * const store = new MemoryStore()
- * // Pass to createTcPinpointHandler({ store }) or initTcPinpoint({ store })
+ * // Pass to createPinPointHandler({ store }) or initPinPoint({ store })
  * ```
  */
-export class MemoryStore implements TcPinpointStore {
+export class MemoryStore implements PinPointStore {
   private feedbacks: FeedbackRecord[] = [];
   private idCounter = 1;
 

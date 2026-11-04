@@ -1,5 +1,5 @@
 /**
- * Shared conformance test suite for `TcPinpointStore` implementations.
+ * Shared conformance test suite for `PinPointStore` implementations.
  *
  * Adapters import this and run it with their store factory to verify they
  * satisfy the full store contract — no need to write the same 50+ tests
@@ -7,15 +7,15 @@
  *
  * @example
  * ```ts
- * import { testTcPinpointStore } from '@tc-pinpoint/core/testing'
+ * import { testPinPointStore } from '@pinpoint/core/testing'
  * import { DrizzleStore } from '../src/index.js'
  *
- * testTcPinpointStore(() => new DrizzleStore(db))
+ * testPinPointStore(() => new DrizzleStore(db))
  * ```
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import type { CommentCreateInput, DiagnosticsSnapshot, FeedbackCreateInput, TcPinpointStore } from "./types.js";
+import type { CommentCreateInput, DiagnosticsSnapshot, FeedbackCreateInput, PinPointStore } from "./types.js";
 import { isStoreDuplicate, isStoreLimit, isStoreNotFound, MAX_COMMENTS_PER_FEEDBACK } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ const MINIMAL_ANNOTATION = {
 export interface StoreConformanceOptions {
   /**
    * How `createFeedback` reacts to a duplicate `clientId` — both are valid
-   * per the `TcPinpointStore` contract:
+   * per the `PinPointStore` contract:
    * - `"return"` (default): idempotently return the existing record. A
    *   concurrent create that loses the insert race may still throw
    *   `StoreDuplicateError`, which the HTTP handler recovers.
@@ -119,20 +119,20 @@ export interface StoreConformanceOptions {
 }
 
 /**
- * Run the full `TcPinpointStore` conformance test suite.
+ * Run the full `PinPointStore` conformance test suite.
  *
  * @param factory — called before each test to create a fresh, empty store instance. May be async.
  * @param options — contract variations, see {@link StoreConformanceOptions}.
  */
-export function testTcPinpointStore(
-  factory: () => TcPinpointStore | Promise<TcPinpointStore>,
+export function testPinPointStore(
+  factory: () => PinPointStore | Promise<PinPointStore>,
   options?: StoreConformanceOptions,
 ): void {
   const duplicateBehavior = options?.duplicateBehavior ?? "return";
   const caseInsensitiveSearch = options?.caseInsensitiveSearch ?? true;
 
-  describe("TcPinpointStore conformance", () => {
-    let store: TcPinpointStore;
+  describe("PinPointStore conformance", () => {
+    let store: PinPointStore;
 
     beforeEach(async () => {
       store = await factory();

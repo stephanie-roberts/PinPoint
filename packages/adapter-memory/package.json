@@ -1,5 +1,5 @@
 {
-  "name": "@tc-pinpoint/adapter-memory",
+  "name": "@pinpoint/adapter-memory",
   "version": "0.5.4",
   "description": "In-memory adapter for PinPoint — zero dependencies, works everywhere",
   "type": "module",
@@ -28,7 +28,7 @@
     "clean": "rm -rf dist"
   },
   "keywords": [
-    "tcpinpoint",
+    "pinpoint",
     "memory",
     "adapter",
     "feedback",
@@ -45,6 +45,6 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@tc-pinpoint/core": "*"
+    "@pinpoint/core": "*"
   }
 }

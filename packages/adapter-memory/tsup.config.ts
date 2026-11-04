@@ -1,4 +1,4 @@
 import { defineConfig } from "tsup";
-import { tcPinpointLibrary } from "../../tsup.preset.js";
+import { pinPointLibrary } from "../../tsup.preset.js";
 
-export default defineConfig(tcPinpointLibrary({ platform: "neutral" }));
+export default defineConfig(pinPointLibrary({ platform: "neutral" }));

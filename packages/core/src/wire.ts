@@ -8,7 +8,7 @@
  * now.
  */
 
-import { TcPinpointAuthError, TcPinpointError, TcPinpointNetworkError, TcPinpointValidationError } from "./errors.js";
+import { PinPointAuthError, PinPointError, PinPointNetworkError, PinPointValidationError } from "./errors.js";
 import type { FeedbackQuery } from "./types.js";
 
 /**
@@ -66,7 +66,7 @@ export function mergeRequestHeaders(
 
 /**
  * Append `params` to `endpoint`, which may already carry a query string
- * (`/api/tcpinpoint?tenant=acme`) or a fragment — naive `${endpoint}?${params}`
+ * (`/api/pinpoint?tenant=acme`) or a fragment — naive `${endpoint}?${params}`
  * produced `?tenant=acme?projectName=…`, a 400. Plain string work, so
  * relative endpoints stay relative and nothing depends on `location`.
  */
@@ -81,25 +81,25 @@ export function withSearchParams(endpoint: string, params: URLSearchParams): str
 
 /**
  * Map a non-OK `Response` to the appropriate typed error:
- *   - 401 / 403 → `TcPinpointAuthError`, with its `status`
- *   - other 4xx → `TcPinpointValidationError`, with its `status`
- *   - 5xx (or anything else) → generic `TcPinpointError` (code `"SERVER"`)
+ *   - 401 / 403 → `PinPointAuthError`, with its `status`
+ *   - other 4xx → `PinPointValidationError`, with its `status`
+ *   - 5xx (or anything else) → generic `PinPointError` (code `"SERVER"`)
  *
  * The response body is consumed via `.text()` so the caller keeps the
  * server-supplied message in the thrown error; `.text()` failures fall back
  * to `"Unknown error"` (kept verbatim — host apps grep for it).
  */
-export async function errorFromResponse(response: Response, label: string): Promise<TcPinpointError> {
+export async function errorFromResponse(response: Response, label: string): Promise<PinPointError> {
   const text = await response.text().catch(() => "Unknown error");
   const detail = text ? `${response.status} ${text}` : `${response.status}`;
   const message = `${label}: ${detail}`;
-  if (response.status === 401 || response.status === 403) return new TcPinpointAuthError(message, response.status);
-  if (response.status >= 400 && response.status < 500) return new TcPinpointValidationError(message, response.status);
-  return new TcPinpointError(message, "SERVER", false);
+  if (response.status === 401 || response.status === 403) return new PinPointAuthError(message, response.status);
+  if (response.status >= 400 && response.status < 500) return new PinPointValidationError(message, response.status);
+  return new PinPointError(message, "SERVER", false);
 }
 
 /**
- * An error's `status` (`TcPinpointValidationError.status`, or a custom
+ * An error's `status` (`PinPointValidationError.status`, or a custom
  * source's) or `code` (a store error's) — read as a plain field, not through
  * `instanceof`: an instance carries its code anyway, and the store error
  * classes stay out of the browser bundles. Anything thrown is safe to read:
@@ -128,12 +128,12 @@ export function isCommentGone(error: unknown): boolean {
 
 /**
  * Normalise an exception thrown by `fetch` (or a timeout AbortController)
- * into a `TcPinpointNetworkError`. AbortErrors count as network failures —
+ * into a `PinPointNetworkError`. AbortErrors count as network failures —
  * in PinPoint client code they always come from internal timeouts, never a
  * user-driven cancellation.
  */
-export function networkErrorFromException(error: unknown, label: string): TcPinpointNetworkError {
-  if (error instanceof TcPinpointNetworkError) return error;
+export function networkErrorFromException(error: unknown, label: string): PinPointNetworkError {
+  if (error instanceof PinPointNetworkError) return error;
   const detail = error instanceof Error ? error.message : String(error);
-  return new TcPinpointNetworkError(`${label}: ${detail}`);
+  return new PinPointNetworkError(`${label}: ${detail}`);
 }

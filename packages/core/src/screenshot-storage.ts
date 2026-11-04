@@ -8,7 +8,7 @@
  * inline base64 (with a one-time warn) — fine for dev and small
  * deployments, a footgun for production Postgres.
  *
- * `@tc-pinpoint/screenshot-storage` implements it over any S3-compatible
+ * `@pinpoint/screenshot-storage` implements it over any S3-compatible
  * bucket (AWS S3, Cloudflare R2, Backblaze B2, MinIO…), Cloudflare Images,
  * a database table, the local filesystem or memory. Implement it yourself
  * for anything else.
@@ -22,7 +22,7 @@
  * const screenshotStorage: ScreenshotStorage = {
  *   async upload(dataUrl, { mimeType }) {
  *     const body = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
- *     const key = `tcpinpoint/${crypto.randomUUID()}`; // fresh per upload, see URL ownership
+ *     const key = `pinpoint/${crypto.randomUUID()}`; // fresh per upload, see URL ownership
  *     await s3.send(new PutObjectCommand({
  *       Bucket: "my-bucket", Key: key, Body: body, ContentType: mimeType,
  *     }));
@@ -30,7 +30,7 @@
  *   },
  * };
  *
- * createTcPinpointHandler({ prisma, screenshotStorage });
+ * createPinPointHandler({ prisma, screenshotStorage });
  * ```
  */
 export interface ScreenshotStorage {

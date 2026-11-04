@@ -1,5 +1,5 @@
 {
-  "name": "tcpinpoint",
+  "name": "pinpoint",
   "private": true,
   "description": "PinPoint: a self-hosted snagging tool. Clients pin feedback to their website; your team works through it in one inbox.",
   "type": "module",

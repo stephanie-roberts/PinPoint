@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TC_PINPOINT_MODELS } from "../src/schema.js";
+import { PINPOINT_MODELS } from "../src/schema.js";
 import type { FeedbackStatus, FeedbackType } from "../src/types.js";
 import { CLOSED_FEEDBACK_STATUSES, FEEDBACK_STATUSES, FEEDBACK_TYPES, isClosedStatus } from "../src/types.js";
 
@@ -23,22 +23,22 @@ const VALID_PRISMA_TYPES = new Set([
 // Model structure
 // ---------------------------------------------------------------------------
 
-describe("TC_PINPOINT_MODELS structure", () => {
-  it("contains exactly 3 models: TcPinpointFeedback, TcPinpointAnnotation and TcPinpointComment", () => {
-    expect(Object.keys(TC_PINPOINT_MODELS)).toEqual([
-      "TcPinpointFeedback",
-      "TcPinpointAnnotation",
-      "TcPinpointComment",
+describe("PINPOINT_MODELS structure", () => {
+  it("contains exactly 3 models: PinPointFeedback, PinPointAnnotation and PinPointComment", () => {
+    expect(Object.keys(PINPOINT_MODELS)).toEqual([
+      "PinPointFeedback",
+      "PinPointAnnotation",
+      "PinPointComment",
     ]);
   });
 });
 
 // ---------------------------------------------------------------------------
-// TcPinpointFeedback model
+// PinPointFeedback model
 // ---------------------------------------------------------------------------
 
-describe("TcPinpointFeedback model", () => {
-  const model = TC_PINPOINT_MODELS.TcPinpointFeedback;
+describe("PinPointFeedback model", () => {
+  const model = PINPOINT_MODELS.PinPointFeedback;
   const fields = model.fields;
 
   it("has all expected fields", () => {
@@ -112,17 +112,17 @@ describe("TcPinpointFeedback model", () => {
     expect(fields.updatedAt.isUpdatedAt).toBe(true);
   });
 
-  it("annotations is a 1-to-many relation to TcPinpointAnnotation", () => {
-    expect(fields.annotations.type).toBe("TcPinpointAnnotation");
+  it("annotations is a 1-to-many relation to PinPointAnnotation", () => {
+    expect(fields.annotations.type).toBe("PinPointAnnotation");
     expect(fields.annotations.relation).toBeDefined();
     expect(fields.annotations.relation!.kind).toBe("1-to-many");
-    expect(fields.annotations.relation!.model).toBe("TcPinpointAnnotation");
+    expect(fields.annotations.relation!.model).toBe("PinPointAnnotation");
   });
 
-  it("comments is a 1-to-many relation to TcPinpointComment", () => {
-    expect(fields.comments.type).toBe("TcPinpointComment");
+  it("comments is a 1-to-many relation to PinPointComment", () => {
+    expect(fields.comments.type).toBe("PinPointComment");
     expect(fields.comments.relation.kind).toBe("1-to-many");
-    expect(fields.comments.relation.model).toBe("TcPinpointComment");
+    expect(fields.comments.relation.model).toBe("PinPointComment");
   });
 
   it("has @@index([projectName]) for project-scoped queries", () => {
@@ -145,11 +145,11 @@ describe("TcPinpointFeedback model", () => {
 });
 
 // ---------------------------------------------------------------------------
-// TcPinpointAnnotation model
+// PinPointAnnotation model
 // ---------------------------------------------------------------------------
 
-describe("TcPinpointAnnotation model", () => {
-  const model = TC_PINPOINT_MODELS.TcPinpointAnnotation;
+describe("PinPointAnnotation model", () => {
+  const model = PINPOINT_MODELS.PinPointAnnotation;
   const fields = model.fields;
 
   it("has all expected fields", () => {
@@ -189,11 +189,11 @@ describe("TcPinpointAnnotation model", () => {
     expect(fields.id.default).toBe("cuid()");
   });
 
-  it("feedback is a many-to-1 relation to TcPinpointFeedback with Cascade delete", () => {
+  it("feedback is a many-to-1 relation to PinPointFeedback with Cascade delete", () => {
     const rel = fields.feedback.relation;
     expect(rel).toBeDefined();
     expect(rel!.kind).toBe("many-to-1");
-    expect(rel!.model).toBe("TcPinpointFeedback");
+    expect(rel!.model).toBe("PinPointFeedback");
     expect(rel!.fields).toEqual(["feedbackId"]);
     expect(rel!.references).toEqual(["id"]);
     expect(rel!.onDelete).toBe("Cascade");
@@ -241,11 +241,11 @@ describe("TcPinpointAnnotation model", () => {
 // ---------------------------------------------------------------------------
 // Field type validation
 // ---------------------------------------------------------------------------
-// TcPinpointComment model
+// PinPointComment model
 // ---------------------------------------------------------------------------
 
-describe("TcPinpointComment model", () => {
-  const model = TC_PINPOINT_MODELS.TcPinpointComment;
+describe("PinPointComment model", () => {
+  const model = PINPOINT_MODELS.PinPointComment;
   const fields = model.fields;
 
   it("has all expected fields", () => {
@@ -262,10 +262,10 @@ describe("TcPinpointComment model", () => {
     ]);
   });
 
-  it("feedback is a many-to-1 relation to TcPinpointFeedback with Cascade delete", () => {
+  it("feedback is a many-to-1 relation to PinPointFeedback with Cascade delete", () => {
     expect(fields.feedback.relation).toEqual({
       kind: "many-to-1",
-      model: "TcPinpointFeedback",
+      model: "PinPointFeedback",
       fields: ["feedbackId"],
       references: ["id"],
       onDelete: "Cascade",
@@ -286,7 +286,7 @@ describe("TcPinpointComment model", () => {
 // ---------------------------------------------------------------------------
 
 describe("Field type validity", () => {
-  for (const [modelName, modelDef] of Object.entries(TC_PINPOINT_MODELS)) {
+  for (const [modelName, modelDef] of Object.entries(PINPOINT_MODELS)) {
     it(`all non-relation fields in ${modelName} use valid Prisma types`, () => {
       for (const [fieldName, fieldDef] of Object.entries(modelDef.fields)) {
         if (fieldDef.relation) continue;
@@ -298,12 +298,12 @@ describe("Field type validity", () => {
     });
   }
 
-  for (const [modelName, modelDef] of Object.entries(TC_PINPOINT_MODELS)) {
+  for (const [modelName, modelDef] of Object.entries(PINPOINT_MODELS)) {
     it(`relation fields in ${modelName} reference existing models`, () => {
       for (const [fieldName, fieldDef] of Object.entries(modelDef.fields)) {
         if (!fieldDef.relation) continue;
         expect(
-          TC_PINPOINT_MODELS,
+          PINPOINT_MODELS,
           `${modelName}.${fieldName} references non-existent model "${fieldDef.relation.model}"`,
         ).toHaveProperty(fieldDef.relation.model);
       }

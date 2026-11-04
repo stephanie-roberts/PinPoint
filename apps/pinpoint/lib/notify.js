@@ -44,7 +44,7 @@ function pageLink(site, feedback) {
 
     if (!["http:", "https:"].includes(url.protocol)) return null;
 
-    url.searchParams.set("tcpinpoint", feedback.id);
+    url.searchParams.set("pinpoint", feedback.id);
 
     return url.toString();
   } catch {

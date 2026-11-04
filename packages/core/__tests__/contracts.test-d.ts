@@ -31,40 +31,40 @@ import type {
   FeedbackResponse,
   FeedbackResponseList,
   FeedbackUpdateInput,
-  TcPinpointCapabilities,
-  TcPinpointConfig,
-  TcPinpointStore,
+  PinPointCapabilities,
+  PinPointConfig,
+  PinPointStore,
 } from "../src/types.js";
 
-declare const store: TcPinpointStore;
+declare const store: PinPointStore;
 
-describe("TcPinpointConfig discriminated union", () => {
+describe("PinPointConfig discriminated union", () => {
   it("accepts each mode on its own", () => {
-    expectTypeOf({ projectName: "p", endpoint: "/api/tcpinpoint" }).toExtend<TcPinpointConfig>();
-    expectTypeOf({ projectName: "p", endpoint: "/api", apiKey: "k" }).toExtend<TcPinpointConfig>();
-    expectTypeOf({ projectName: "p", store }).toExtend<TcPinpointConfig>();
+    expectTypeOf({ projectName: "p", endpoint: "/api/pinpoint" }).toExtend<PinPointConfig>();
+    expectTypeOf({ projectName: "p", endpoint: "/api", apiKey: "k" }).toExtend<PinPointConfig>();
+    expectTypeOf({ projectName: "p", store }).toExtend<PinPointConfig>();
   });
 
   it("rejects invalid mode combinations", () => {
     // @ts-expect-error — neither endpoint nor store: no union arm matches
-    const neither: TcPinpointConfig = { projectName: "p" };
+    const neither: PinPointConfig = { projectName: "p" };
     void neither;
 
     // @ts-expect-error — endpoint and store are mutually exclusive
-    const both: TcPinpointConfig = { projectName: "p", endpoint: "/api", store };
+    const both: PinPointConfig = { projectName: "p", endpoint: "/api", store };
     void both;
 
     // @ts-expect-error — apiKey is HTTP-mode only
-    const storeWithApiKey: TcPinpointConfig = { projectName: "p", store, apiKey: "leaked" };
+    const storeWithApiKey: PinPointConfig = { projectName: "p", store, apiKey: "leaked" };
     void storeWithApiKey;
   });
 
   it("takes readOnly in both modes — a shared option, outside the union", () => {
-    expectTypeOf({ projectName: "p", endpoint: "/api", readOnly: true }).toExtend<TcPinpointConfig>();
-    expectTypeOf({ projectName: "p", store, readOnly: true }).toExtend<TcPinpointConfig>();
+    expectTypeOf({ projectName: "p", endpoint: "/api", readOnly: true }).toExtend<PinPointConfig>();
+    expectTypeOf({ projectName: "p", store, readOnly: true }).toExtend<PinPointConfig>();
 
     // @ts-expect-error — a flag, not a list of actions
-    const granular: TcPinpointConfig = { projectName: "p", store, readOnly: ["delete"] };
+    const granular: PinPointConfig = { projectName: "p", store, readOnly: ["delete"] };
     void granular;
   });
 });
@@ -123,8 +123,8 @@ describe("wire types derived from record types", () => {
   });
 
   it("advertises capabilities on the list, optional for servers that predate them", () => {
-    expectTypeOf<FeedbackResponseList["capabilities"]>().toEqualTypeOf<TcPinpointCapabilities | undefined>();
-    expectTypeOf<TcPinpointCapabilities>().toEqualTypeOf<{ comments: boolean; deleteComments?: boolean | undefined }>();
+    expectTypeOf<FeedbackResponseList["capabilities"]>().toEqualTypeOf<PinPointCapabilities | undefined>();
+    expectTypeOf<PinPointCapabilities>().toEqualTypeOf<{ comments: boolean; deleteComments?: boolean | undefined }>();
   });
 
   it("keeps the requester's permissions off the record, optional for servers that predate them", () => {
@@ -153,23 +153,23 @@ describe("discussion threads", () => {
   });
 
   it("keeps addComment and deleteComment optional for minimal adapters", () => {
-    expectTypeOf<TcPinpointStore["addComment"]>().toEqualTypeOf<
+    expectTypeOf<PinPointStore["addComment"]>().toEqualTypeOf<
       ((feedbackId: string, data: CommentCreateInput) => Promise<CommentRecord>) | undefined
     >();
-    expectTypeOf<TcPinpointStore["deleteComment"]>().toEqualTypeOf<
+    expectTypeOf<PinPointStore["deleteComment"]>().toEqualTypeOf<
       ((feedbackId: string, commentId: string) => Promise<void>) | undefined
     >();
     expectTypeOf<Omit<CollectionStore, "addComment" | "deleteComment">>().toExtend<CollectionStore>();
   });
 });
 
-describe("TcPinpointStore contract", () => {
+describe("PinPointStore contract", () => {
   it("is satisfied by the collection-store engine, including its optional members", () => {
     const engine = createCollectionStore({ load: () => [], persist: () => {}, generateId: () => "id", comments: true });
-    expectTypeOf(engine).toExtend<TcPinpointStore>();
+    expectTypeOf(engine).toExtend<PinPointStore>();
     expectTypeOf(engine).toExtend<
       Required<
-        Pick<TcPinpointStore, "verifyProjectOwnership" | "createFeedbackIfAbsent" | "addComment" | "deleteComment">
+        Pick<PinPointStore, "verifyProjectOwnership" | "createFeedbackIfAbsent" | "addComment" | "deleteComment">
       >
     >();
     expectTypeOf(engine.verifyProjectOwnership).returns.resolves.toEqualTypeOf<boolean>();
@@ -178,13 +178,13 @@ describe("TcPinpointStore contract", () => {
 
   it("guarantees threads only to an engine that opts in", () => {
     const threadless = createCollectionStore({ load: () => [], persist: () => {}, generateId: () => "id" });
-    expectTypeOf(threadless).toExtend<TcPinpointStore>();
-    expectTypeOf(threadless.addComment).toEqualTypeOf<TcPinpointStore["addComment"]>();
-    expectTypeOf(threadless.deleteComment).toEqualTypeOf<TcPinpointStore["deleteComment"]>();
+    expectTypeOf(threadless).toExtend<PinPointStore>();
+    expectTypeOf(threadless.addComment).toEqualTypeOf<PinPointStore["addComment"]>();
+    expectTypeOf(threadless.deleteComment).toEqualTypeOf<PinPointStore["deleteComment"]>();
   });
 
   it("keeps createFeedbackIfAbsent optional for minimal adapters", () => {
-    expectTypeOf<TcPinpointStore["createFeedbackIfAbsent"]>().toEqualTypeOf<
+    expectTypeOf<PinPointStore["createFeedbackIfAbsent"]>().toEqualTypeOf<
       ((data: FeedbackCreateInput) => Promise<FeedbackCreateOutcome>) | undefined
     >();
   });
@@ -194,7 +194,7 @@ describe("TcPinpointStore contract", () => {
   });
 
   it("keeps verifyProjectOwnership optional for minimal adapters", () => {
-    expectTypeOf<TcPinpointStore["verifyProjectOwnership"]>().toEqualTypeOf<
+    expectTypeOf<PinPointStore["verifyProjectOwnership"]>().toEqualTypeOf<
       ((id: string, projectName: string) => Promise<boolean>) | undefined
     >();
   });

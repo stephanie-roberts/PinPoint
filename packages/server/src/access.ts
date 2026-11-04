@@ -1,11 +1,11 @@
 import { ERROR_MESSAGES } from "./constants.js";
 import type {
-  TcPinpointAccessControl,
-  TcPinpointApiKeyHandlerOptions,
-  TcPinpointAuthorizationContext,
-  TcPinpointHttpMethod,
-  TcPinpointPrincipal,
-  TcPinpointRequestContext,
+  PinPointAccessControl,
+  PinPointApiKeyHandlerOptions,
+  PinPointAuthorizationContext,
+  PinPointHttpMethod,
+  PinPointPrincipal,
+  PinPointRequestContext,
 } from "./options.js";
 
 /** Outcome of the access check that opens every request. */
@@ -26,19 +26,19 @@ export interface AccessGate<Principal> {
   readonly guardsMutations: boolean;
   /** `Cache-Control` of the list response. */
   readonly listCacheControl: string;
-  authenticate(request: Request, method: TcPinpointHttpMethod): Promise<AccessOutcome<Principal>>;
+  authenticate(request: Request, method: PinPointHttpMethod): Promise<AccessOutcome<Principal>>;
   /**
    * Whether the caller of an admitted request would be admitted on `method`
    * too — the first half of each `permissions` answer, `authorize` the second.
    */
-  admits(request: Request, method: TcPinpointHttpMethod): Promise<boolean>;
-  authorize(context: TcPinpointAuthorizationContext<Principal>): Promise<boolean>;
+  admits(request: Request, method: PinPointHttpMethod): Promise<boolean>;
+  authorize(context: PinPointAuthorizationContext<Principal>): Promise<boolean>;
   /**
    * Whether an authenticated caller's comment keeps the `team` role it asks
    * for. Asked only when a comment does, so a GET never runs the policy's
    * callback for it.
    */
-  canCommentAsTeam(context: TcPinpointRequestContext<Principal>, canReadAuthorEmail: boolean): Promise<boolean>;
+  canCommentAsTeam(context: PinPointRequestContext<Principal>, canReadAuthorEmail: boolean): Promise<boolean>;
 }
 
 const textEncoder = new TextEncoder();
@@ -82,19 +82,19 @@ export function createApiKeyGate({
   requireAuthForDestructive = true,
   redactUnauthenticatedEmails = true,
 }: Pick<
-  TcPinpointApiKeyHandlerOptions,
+  PinPointApiKeyHandlerOptions,
   "apiKey" | "publicEndpoints" | "requireAuthForDestructive" | "redactUnauthenticatedEmails"
 >): AccessGate<null> {
   // Without this guard, anyone could `DELETE { deleteAll: true }` against the API.
   if (!apiKey && requireAuthForDestructive && isProductionEnvironment()) {
     throw new Error(
-      "[tcpinpoint] createTcPinpointHandler: apiKey is required in production. " +
+      "[pinpoint] createPinPointHandler: apiKey is required in production. " +
         "Set `apiKey` to enable destructive endpoints, pass `access` to plug in your own authentication, " +
         "or pass `requireAuthForDestructive: false` if PinPoint sits behind your own auth middleware.",
     );
   }
 
-  const publicMethods: ReadonlySet<TcPinpointHttpMethod> | null = publicEndpoints ? new Set(publicEndpoints) : null;
+  const publicMethods: ReadonlySet<PinPointHttpMethod> | null = publicEndpoints ? new Set(publicEndpoints) : null;
 
   /**
    * True iff `apiKey` is configured AND the request carries a matching Bearer
@@ -143,8 +143,8 @@ export function createApiKeyGate({
 }
 
 /** A custom `access` policy. */
-export function createAccessGate<Principal extends TcPinpointPrincipal>(
-  access: TcPinpointAccessControl<Principal>,
+export function createAccessGate<Principal extends PinPointPrincipal>(
+  access: PinPointAccessControl<Principal>,
 ): AccessGate<Principal> {
   return {
     echoesAuthorEmailOnCreate: false,

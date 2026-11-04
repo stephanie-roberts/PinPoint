@@ -1,15 +1,15 @@
-import { MemoryStore } from "@tc-pinpoint/adapter-memory";
-import type { FeedbackRecord } from "@tc-pinpoint/core";
+import { MemoryStore } from "@pinpoint/adapter-memory";
+import type { FeedbackRecord } from "@pinpoint/core";
 import { describe, expect, it, vi } from "vitest";
 import {
-  createTcPinpointHandler,
-  type TcPinpointAccessControl,
-  type TcPinpointHandler,
-  type TcPinpointLogger,
+  createPinPointHandler,
+  type PinPointAccessControl,
+  type PinPointHandler,
+  type PinPointLogger,
 } from "../src/index.js";
 import { validPayloadNoAnnotations } from "./fixtures.js";
 
-const ENDPOINT = "http://localhost/api/tcpinpoint";
+const ENDPOINT = "http://localhost/api/pinpoint";
 const SAME_ORIGIN = "http://localhost";
 const ALLOWED_ORIGIN = "https://client-site.example";
 const FOREIGN_ORIGIN = "https://attacker.example";
@@ -22,7 +22,7 @@ interface Reviewer {
 }
 
 /** Cookie session policy: the browser attaches the cookie to any request, cross-site forgeries included. */
-function cookieSessionAccess(): TcPinpointAccessControl<Reviewer> {
+function cookieSessionAccess(): PinPointAccessControl<Reviewer> {
   return {
     authenticate: vi.fn((request: Request) =>
       request.headers.get("Cookie") === SESSION_COOKIE ? { email: "reviewer@example.com" } : null,
@@ -45,18 +45,18 @@ function mutationRequest({ method, body, origin, contentType = JSON_CONTENT_TYPE
 }
 
 interface HandlerSetup {
-  handler: TcPinpointHandler;
+  handler: PinPointHandler;
   store: MemoryStore;
-  access: TcPinpointAccessControl<Reviewer>;
-  logger: { error: ReturnType<typeof vi.fn<TcPinpointLogger["error"]>> };
+  access: PinPointAccessControl<Reviewer>;
+  logger: { error: ReturnType<typeof vi.fn<PinPointLogger["error"]>> };
 }
 
 /** `null` builds a handler without `allowedOrigins` (CORS disabled). */
 function setupHandler(allowedOrigins: ReadonlyArray<string> | null = [ALLOWED_ORIGIN]): HandlerSetup {
   const store = new MemoryStore();
   const access = cookieSessionAccess();
-  const logger = { error: vi.fn<TcPinpointLogger["error"]>() };
-  const handler = createTcPinpointHandler({ store, access, allowedOrigins: allowedOrigins ?? undefined, logger });
+  const logger = { error: vi.fn<PinPointLogger["error"]>() };
+  const handler = createPinPointHandler({ store, access, allowedOrigins: allowedOrigins ?? undefined, logger });
   return { handler, store, access, logger };
 }
 
@@ -64,7 +64,7 @@ async function storedFeedbacks(store: MemoryStore): Promise<FeedbackRecord[]> {
   return (await store.getFeedbacks({ projectName: validPayloadNoAnnotations.projectName })).feedbacks;
 }
 
-describe("createTcPinpointHandler — cross-site request forgery (access policy)", () => {
+describe("createPinPointHandler — cross-site request forgery (access policy)", () => {
   it("refuses a credentialed text/plain POST from a foreign origin before authenticating", async () => {
     const { handler, store, access, logger } = setupHandler();
 
@@ -83,10 +83,10 @@ describe("createTcPinpointHandler — cross-site request forgery (access policy)
     expect(response.headers.get("Vary")).toBe("Origin");
     expect(await storedFeedbacks(store)).toHaveLength(0);
     expect(access.authenticate).not.toHaveBeenCalled();
-    expect(logger.error).toHaveBeenCalledWith("[tcpinpoint] Refused a mutation from an origin outside allowedOrigins", {
+    expect(logger.error).toHaveBeenCalledWith("[pinpoint] Refused a mutation from an origin outside allowedOrigins", {
       origin: FOREIGN_ORIGIN,
       method: "POST",
-      path: "/api/tcpinpoint",
+      path: "/api/pinpoint",
     });
   });
 
@@ -262,10 +262,10 @@ describe("createTcPinpointHandler — cross-site request forgery (access policy)
   });
 });
 
-describe("createTcPinpointHandler — no CSRF guards under the apiKey policy", () => {
+describe("createPinPointHandler — no CSRF guards under the apiKey policy", () => {
   it("keeps serving a text/plain POST from an unlisted origin, as adapter-prisma always has", async () => {
     const store = new MemoryStore();
-    const handler = createTcPinpointHandler({ store, apiKey: "secret-key", allowedOrigins: [ALLOWED_ORIGIN] });
+    const handler = createPinPointHandler({ store, apiKey: "secret-key", allowedOrigins: [ALLOWED_ORIGIN] });
 
     const response = await handler.POST(
       new Request(ENDPOINT, {

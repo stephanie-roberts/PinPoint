@@ -4,9 +4,9 @@ import { type MinifyOptions, minify } from "terser";
 import type { Options } from "tsup";
 
 /**
- * Shared tsup defaults for `@tc-pinpoint/*` library packages.
+ * Shared tsup defaults for `@pinpoint/*` library packages.
  *
- * Every published package builds dual ESM+CJS with bundled `@tc-pinpoint/core`
+ * Every published package builds dual ESM+CJS with bundled `@pinpoint/core`
  * (core is an Internal Package — raw TS, never published; the regex also
  * catches its `/testing` subpath). Packages override only what genuinely
  * differs: platform, extra entries, externals, minification.
@@ -16,7 +16,7 @@ import type { Options } from "tsup";
  * hook — onSuccess does not wait for the async dts build, and fix-dts must
  * run after the declarations exist. Keep the chain when adding a package.
  */
-export function tcPinpointLibrary(overrides: Partial<Options> & Pick<Options, "platform">): Options {
+export function pinPointLibrary(overrides: Partial<Options> & Pick<Options, "platform">): Options {
   return {
     entry: ["src/index.ts"],
     format: ["esm", "cjs"],
@@ -24,7 +24,7 @@ export function tcPinpointLibrary(overrides: Partial<Options> & Pick<Options, "p
     dts: true,
     sourcemap: true,
     clean: true,
-    noExternal: [/^@tcpinpoint\/core(\/|$)/],
+    noExternal: [/^@pinpoint\/core(\/|$)/],
     ...overrides,
   };
 }

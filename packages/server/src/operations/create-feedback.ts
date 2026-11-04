@@ -5,24 +5,24 @@ import {
   flattenAnnotation,
   isStoreDuplicate,
   isStoreValueTooLong,
-  type TcPinpointStore,
-} from "@tc-pinpoint/core";
+  type PinPointStore,
+} from "@pinpoint/core";
 import { ERROR_MESSAGES, MAX_ANNOTATIONS_PER_FEEDBACK } from "../constants.js";
-import type { TcPinpointHandlerBaseOptions, TcPinpointLifecycleHooks } from "../options.js";
+import type { PinPointHandlerBaseOptions, PinPointLifecycleHooks } from "../options.js";
 import type { Pipeline, Scope } from "../pipeline.js";
 import { feedbackCreateSchema } from "../validation.js";
 import { dispatchWebhooks, type WebhookConfig } from "../webhooks.js";
 
 interface CreateFeedbackDependencies<Principal> {
-  store: TcPinpointStore;
+  store: PinPointStore;
   pipeline: Pipeline<Principal>;
   webhooks: ReadonlyArray<WebhookConfig>;
-  waitUntil: TcPinpointHandlerBaseOptions<Principal>["waitUntil"];
-  beforeCreate: TcPinpointHandlerBaseOptions<Principal>["beforeCreate"];
-  onCreated: TcPinpointLifecycleHooks<Principal>["onCreated"];
+  waitUntil: PinPointHandlerBaseOptions<Principal>["waitUntil"];
+  beforeCreate: PinPointHandlerBaseOptions<Principal>["beforeCreate"];
+  onCreated: PinPointLifecycleHooks<Principal>["onCreated"];
 }
 
-const FAILED_TO_CREATE = "[tcpinpoint] Failed to create feedback";
+const FAILED_TO_CREATE = "[pinpoint] Failed to create feedback";
 
 /** Outcome of one create: `inserted` is false for a replay. */
 interface CreateOutcome {
@@ -136,7 +136,7 @@ export function createFeedbackOperation<Principal>({
         try {
           existing = await store.findByClientId(input.clientId);
         } catch (lookupError) {
-          pipeline.logError(scope, "[tcpinpoint] Failed to look up the duplicate clientId", {
+          pipeline.logError(scope, "[pinpoint] Failed to look up the duplicate clientId", {
             error: lookupError,
             projectName: input.projectName,
           });
@@ -162,7 +162,7 @@ export function createFeedbackOperation<Principal>({
           try {
             waitUntil?.(delivery);
           } catch (error) {
-            pipeline.logError(scope, "[tcpinpoint] waitUntil failed", { error, ...subject });
+            pipeline.logError(scope, "[pinpoint] waitUntil failed", { error, ...subject });
           }
         }
         if (onCreated) await pipeline.runHook(scope, "onCreated", subject, () => onCreated(feedback, scope.context));

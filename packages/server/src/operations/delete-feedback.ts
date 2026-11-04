@@ -1,14 +1,14 @@
-import { isStoreNotFound, type TcPinpointStore } from "@tc-pinpoint/core";
+import { isStoreNotFound, type PinPointStore } from "@pinpoint/core";
 import { ERROR_MESSAGES } from "../constants.js";
-import type { TcPinpointDeletionTarget, TcPinpointLifecycleHooks } from "../options.js";
+import type { PinPointDeletionTarget, PinPointLifecycleHooks } from "../options.js";
 import type { Pipeline, Scope } from "../pipeline.js";
 import { feedbackDeleteSchema } from "../validation.js";
 
 interface DeleteFeedbackDependencies<Principal> {
-  store: TcPinpointStore;
+  store: PinPointStore;
   pipeline: Pipeline<Principal>;
-  onDeleting: TcPinpointLifecycleHooks<Principal>["onDeleting"];
-  onDeleted: TcPinpointLifecycleHooks<Principal>["onDeleted"];
+  onDeleting: PinPointLifecycleHooks<Principal>["onDeleting"];
+  onDeleted: PinPointLifecycleHooks<Principal>["onDeleted"];
 }
 
 /** `DELETE` — remove one feedback, or every feedback of a project (`deleteAll`). */
@@ -21,7 +21,7 @@ export function deleteFeedbackOperation<Principal>({
   return async (scope: Scope<Principal>, body: unknown): Promise<Response> => {
     const payload = pipeline.validate(scope, feedbackDeleteSchema, body);
     if (!payload.ok) return payload.response;
-    const target: TcPinpointDeletionTarget =
+    const target: PinPointDeletionTarget =
       "deleteAll" in payload.value
         ? { kind: "project", projectName: payload.value.projectName }
         : { kind: "single", id: payload.value.id, projectName: payload.value.projectName };
@@ -48,7 +48,7 @@ export function deleteFeedbackOperation<Principal>({
         try {
           await onDeleting(target, scope.context);
         } catch (error) {
-          pipeline.logError(scope, "[tcpinpoint] Hook onDeleting aborted the deletion", { error, target });
+          pipeline.logError(scope, "[pinpoint] Hook onDeleting aborted the deletion", { error, target });
           return pipeline.error(scope, 502, ERROR_MESSAGES.deletionAborted);
         }
       }
@@ -59,7 +59,7 @@ export function deleteFeedbackOperation<Principal>({
       return pipeline.json(scope, { deleted: true });
     } catch (error) {
       if (isStoreNotFound(error)) return pipeline.error(scope, 404, ERROR_MESSAGES.feedbackNotFound);
-      return pipeline.fail(scope, "[tcpinpoint] Failed to delete feedback", error);
+      return pipeline.fail(scope, "[pinpoint] Failed to delete feedback", error);
     }
   };
 }

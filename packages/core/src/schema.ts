@@ -95,8 +95,8 @@ export interface ModelDef {
   indexes?: readonly IndexDef[];
 }
 
-const _TC_PINPOINT_MODELS = {
-  TcPinpointFeedback: {
+const _PINPOINT_MODELS = {
+  PinPointFeedback: {
     fields: {
       id: { type: "String", isId: true, default: "cuid()" },
       projectName: { type: "String" },
@@ -117,12 +117,12 @@ const _TC_PINPOINT_MODELS = {
       createdAt: { type: "DateTime", default: "now()" },
       updatedAt: { type: "DateTime", isUpdatedAt: true },
       annotations: {
-        type: "TcPinpointAnnotation",
-        relation: { kind: "1-to-many", model: "TcPinpointAnnotation" },
+        type: "PinPointAnnotation",
+        relation: { kind: "1-to-many", model: "PinPointAnnotation" },
       },
       comments: {
-        type: "TcPinpointComment",
-        relation: { kind: "1-to-many", model: "TcPinpointComment" },
+        type: "PinPointComment",
+        relation: { kind: "1-to-many", model: "PinPointComment" },
       },
     },
     indexes: [
@@ -131,15 +131,15 @@ const _TC_PINPOINT_MODELS = {
       { fields: ["projectName", "url"] },
     ],
   },
-  TcPinpointAnnotation: {
+  PinPointAnnotation: {
     fields: {
       id: { type: "String", isId: true, default: "cuid()" },
       feedbackId: { type: "String" },
       feedback: {
-        type: "TcPinpointFeedback",
+        type: "PinPointFeedback",
         relation: {
           kind: "many-to-1",
-          model: "TcPinpointFeedback",
+          model: "PinPointFeedback",
           fields: ["feedbackId"],
           references: ["id"],
           onDelete: "Cascade",
@@ -168,15 +168,15 @@ const _TC_PINPOINT_MODELS = {
     },
     indexes: [{ fields: ["feedbackId"] }],
   },
-  TcPinpointComment: {
+  PinPointComment: {
     fields: {
       id: { type: "String", isId: true, default: "cuid()" },
       feedbackId: { type: "String" },
       feedback: {
-        type: "TcPinpointFeedback",
+        type: "PinPointFeedback",
         relation: {
           kind: "many-to-1",
-          model: "TcPinpointFeedback",
+          model: "PinPointFeedback",
           fields: ["feedbackId"],
           references: ["id"],
           onDelete: "Cascade",
@@ -195,24 +195,24 @@ const _TC_PINPOINT_MODELS = {
 } as const satisfies Record<string, ModelDef>;
 
 /** Map of PinPoint models keyed by model name — frozen at runtime. */
-export const TC_PINPOINT_MODELS: typeof _TC_PINPOINT_MODELS = Object.freeze(_TC_PINPOINT_MODELS);
+export const PINPOINT_MODELS: typeof _PINPOINT_MODELS = Object.freeze(_PINPOINT_MODELS);
 
 /** Union of every PinPoint model name as a string literal. */
-export type TcPinpointModelName = keyof typeof TC_PINPOINT_MODELS;
+export type PinPointModelName = keyof typeof PINPOINT_MODELS;
 
 /** Field names declared on a specific PinPoint model. */
-export type TcPinpointModelFieldName<M extends TcPinpointModelName> = keyof (typeof TC_PINPOINT_MODELS)[M]["fields"];
+export type PinPointModelFieldName<M extends PinPointModelName> = keyof (typeof PINPOINT_MODELS)[M]["fields"];
 
 // ---------------------------------------------------------------------------
 // Compile-time locks — the Prisma model definitions and the store record
 // interfaces describe the same columns. Adding a field to one side without
 // the other is a compile error here (the CLI generates the actual Prisma
-// schema from TC_PINPOINT_MODELS, so a missed column would otherwise only
+// schema from PINPOINT_MODELS, so a missed column would otherwise only
 // surface as a runtime Prisma error).
 // ---------------------------------------------------------------------------
 
 const _feedbackModelMatchesRecord: AssertEqual<
-  TcPinpointModelFieldName<"TcPinpointFeedback">,
+  PinPointModelFieldName<"PinPointFeedback">,
   keyof FeedbackRecord
 > = true;
 void _feedbackModelMatchesRecord;
@@ -220,13 +220,13 @@ void _feedbackModelMatchesRecord;
 // `feedback` is the relation back-reference — the only field with no record
 // counterpart.
 const _annotationModelMatchesRecord: AssertEqual<
-  Exclude<TcPinpointModelFieldName<"TcPinpointAnnotation">, "feedback">,
+  Exclude<PinPointModelFieldName<"PinPointAnnotation">, "feedback">,
   keyof AnnotationRecord
 > = true;
 void _annotationModelMatchesRecord;
 
 const _commentModelMatchesRecord: AssertEqual<
-  Exclude<TcPinpointModelFieldName<"TcPinpointComment">, "feedback">,
+  Exclude<PinPointModelFieldName<"PinPointComment">, "feedback">,
   keyof CommentRecord
 > = true;
 void _commentModelMatchesRecord;

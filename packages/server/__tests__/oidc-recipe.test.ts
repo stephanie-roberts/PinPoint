@@ -1,5 +1,5 @@
-import { MemoryStore } from "@tc-pinpoint/adapter-memory";
-import type { CommentResponse, FeedbackPermissions, FeedbackResponse, FeedbackResponseList } from "@tc-pinpoint/core";
+import { MemoryStore } from "@pinpoint/adapter-memory";
+import type { CommentResponse, FeedbackPermissions, FeedbackResponse, FeedbackResponseList } from "@pinpoint/core";
 import {
   createRemoteJWKSet,
   customFetch,
@@ -15,10 +15,10 @@ import {
 } from "jose";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  createTcPinpointHandler,
-  type TcPinpointAccessControl,
-  type TcPinpointHandler,
-  type TcPinpointLogger,
+  createPinPointHandler,
+  type PinPointAccessControl,
+  type PinPointHandler,
+  type PinPointLogger,
 } from "../src/index.js";
 import { validPayloadNoAnnotations } from "./fixtures.js";
 
@@ -31,7 +31,7 @@ import { validPayloadNoAnnotations } from "./fixtures.js";
 
 const ISSUER = "https://id.example.com/realms/acme";
 const JWKS_URI = `${ISSUER}/protocol/openid-connect/certs`;
-const AUDIENCE = "tcpinpoint-api";
+const AUDIENCE = "pinpoint-api";
 
 // ---- the recipe -------------------------------------------------------------
 
@@ -50,7 +50,7 @@ function rolesOf(payload: JWTPayload): unknown {
 
 const KEY_SET_FAILURES = new Set(["ERR_JOSE_GENERIC", "ERR_JWKS_TIMEOUT", "ERR_JWKS_INVALID"]);
 
-function oidcAccess(jwks: JWTVerifyGetKey): TcPinpointAccessControl<Reviewer> {
+function oidcAccess(jwks: JWTVerifyGetKey): PinPointAccessControl<Reviewer> {
   return {
     async authenticate(request) {
       const authorization = request.headers.get("Authorization") ?? "";
@@ -60,7 +60,7 @@ function oidcAccess(jwks: JWTVerifyGetKey): TcPinpointAccessControl<Reviewer> {
       try {
         const { payload } = await jwtVerify(token, jwks, {
           issuer: ISSUER,
-          audience: "tcpinpoint-api",
+          audience: "pinpoint-api",
           algorithms: ["RS256", "PS256", "ES256", "EdDSA"],
           requiredClaims: ["exp"],
         });
@@ -70,7 +70,7 @@ function oidcAccess(jwks: JWTVerifyGetKey): TcPinpointAccessControl<Reviewer> {
           sub: payload.sub,
           name: typeof payload.name === "string" ? payload.name : "",
           email: payload.email_verified === true && typeof payload.email === "string" ? payload.email : "",
-          isAdmin: Array.isArray(roles) && roles.includes("tcpinpoint-admin"),
+          isAdmin: Array.isArray(roles) && roles.includes("pinpoint-admin"),
         };
       } catch (error) {
         if (error instanceof errors.JOSEError && !KEY_SET_FAILURES.has(error.code)) return null;
@@ -85,7 +85,7 @@ function oidcAccess(jwks: JWTVerifyGetKey): TcPinpointAccessControl<Reviewer> {
 
 // ---- fixtures ---------------------------------------------------------------
 
-const ENDPOINT = "http://localhost/api/tcpinpoint";
+const ENDPOINT = "http://localhost/api/pinpoint";
 const PROJECT = validPayloadNoAnnotations.projectName;
 const KID = "key-1";
 
@@ -94,7 +94,7 @@ const ADMIN = {
   name: "Ada Lovelace",
   email: "ada@acme.example",
   email_verified: true,
-  realm_access: { roles: ["tcpinpoint-admin"] },
+  realm_access: { roles: ["pinpoint-admin"] },
 };
 const MEMBER = {
   sub: "u-max",
@@ -144,8 +144,8 @@ function accessToken(claims: Record<string, unknown>, key: CryptoKey = signingKe
 
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
-function handlerFor(jwks: JWTVerifyGetKey, logger: TcPinpointLogger = { error: vi.fn() }): TcPinpointHandler {
-  return createTcPinpointHandler({
+function handlerFor(jwks: JWTVerifyGetKey, logger: PinPointLogger = { error: vi.fn() }): PinPointHandler {
+  return createPinPointHandler({
     store: new MemoryStore(),
     logger,
     access: oidcAccess(jwks),
@@ -172,7 +172,7 @@ function send(method: string, body: unknown, headers: Record<string, string> = {
 
 let clientIds = 0;
 
-async function submit(handler: TcPinpointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponse> {
+async function submit(handler: PinPointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponse> {
   clientIds += 1;
   const response = await handler.POST(
     send("POST", { ...validPayloadNoAnnotations, clientId: `oidc-${clientIds}` }, headers),
@@ -182,7 +182,7 @@ async function submit(handler: TcPinpointHandler, headers: Record<string, string
 }
 
 async function reply(
-  handler: TcPinpointHandler,
+  handler: PinPointHandler,
   feedbackId: string,
   headers: Record<string, string> = {},
 ): Promise<CommentResponse> {
@@ -200,20 +200,20 @@ async function reply(
   return (await response.json()) as CommentResponse;
 }
 
-function list(handler: TcPinpointHandler, headers: Record<string, string> = {}): Promise<Response> {
+function list(handler: PinPointHandler, headers: Record<string, string> = {}): Promise<Response> {
   return handler.GET(new Request(`${ENDPOINT}?projectName=${PROJECT}`, { headers }));
 }
 
-async function page(handler: TcPinpointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponseList> {
+async function page(handler: PinPointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponseList> {
   const response = await list(handler, headers);
   expect(response.status).toBe(200);
   return (await response.json()) as FeedbackResponseList;
 }
 
-const resolve = (handler: TcPinpointHandler, id: string, headers: Record<string, string> = {}) =>
+const resolve = (handler: PinPointHandler, id: string, headers: Record<string, string> = {}) =>
   handler.PATCH(send("PATCH", { id, projectName: PROJECT, status: "resolved" }, headers));
 
-const remove = (handler: TcPinpointHandler, id: string, headers: Record<string, string> = {}) =>
+const remove = (handler: PinPointHandler, id: string, headers: Record<string, string> = {}) =>
   handler.DELETE(send("DELETE", { id, projectName: PROJECT }, headers));
 
 // ---- the recipe, proven -----------------------------------------------------
@@ -327,7 +327,7 @@ describe("OpenID Connect recipe", () => {
   it.each<[string, () => Promise<Record<string, string>>]>([
     [
       "an ID token, whose audience is the client id",
-      async () => bearer(await accessToken({ ...ADMIN, aud: "tcpinpoint-web" })),
+      async () => bearer(await accessToken({ ...ADMIN, aud: "pinpoint-web" })),
     ],
     ["another issuer's token", async () => bearer(await accessToken({ ...ADMIN, iss: "https://evil.example" }))],
     ["an expired token", async () => bearer(await accessToken({ ...ADMIN, exp: Math.floor(Date.now() / 1000) - 60 }))],
@@ -390,7 +390,7 @@ describe("OpenID Connect recipe", () => {
     const handler = handlerFor(remoteKeySet(fetchKeySet), logger);
 
     expect((await list(handler, bearer(await accessToken(ADMIN)))).status).toBe(500);
-    expect(logger.error).toHaveBeenCalledWith("[tcpinpoint] Failed to authenticate request", expect.anything());
+    expect(logger.error).toHaveBeenCalledWith("[pinpoint] Failed to authenticate request", expect.anything());
     expect((await list(handler)).status).toBe(200);
   });
 });
@@ -428,7 +428,7 @@ describe("OpenID Connect recipe — authors delete their own feedback", () => {
       return ids;
     }
 
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       access: {
         ...oidcAccess(remoteKeySet()),

@@ -4,17 +4,17 @@
  * principal inferred from `access.authenticate`.
  */
 
-import type { CommentPayload, TcPinpointStore } from "@tc-pinpoint/core";
+import type { CommentPayload, PinPointStore } from "@pinpoint/core";
 import { describe, expectTypeOf, it } from "vitest";
 import {
-  createTcPinpointHandler,
-  type TcPinpointAccessControl,
-  type TcPinpointAction,
-  type TcPinpointHandler,
-  type TcPinpointHandlerOptions,
+  createPinPointHandler,
+  type PinPointAccessControl,
+  type PinPointAction,
+  type PinPointHandler,
+  type PinPointHandlerOptions,
 } from "../src/index.js";
 
-declare const store: TcPinpointStore;
+declare const store: PinPointStore;
 
 interface Reviewer {
   id: string;
@@ -22,41 +22,41 @@ interface Reviewer {
 }
 declare function sessionUser(request: Request): Promise<Reviewer | null>;
 
-describe("createTcPinpointHandler options XOR union", () => {
+describe("createPinPointHandler options XOR union", () => {
   it("accepts each policy on its own", () => {
-    expectTypeOf(createTcPinpointHandler({ store })).toEqualTypeOf<TcPinpointHandler>();
+    expectTypeOf(createPinPointHandler({ store })).toEqualTypeOf<PinPointHandler>();
     expectTypeOf(
-      createTcPinpointHandler({ store, apiKey: "k", publicEndpoints: ["POST"] }),
-    ).toEqualTypeOf<TcPinpointHandler>();
+      createPinPointHandler({ store, apiKey: "k", publicEndpoints: ["POST"] }),
+    ).toEqualTypeOf<PinPointHandler>();
     expectTypeOf(
-      createTcPinpointHandler({ store, access: { authenticate: sessionUser } }),
-    ).toEqualTypeOf<TcPinpointHandler>();
+      createPinPointHandler({ store, access: { authenticate: sessionUser } }),
+    ).toEqualTypeOf<PinPointHandler>();
   });
 
   it("accepts options assembled at runtime", () => {
-    const options: TcPinpointHandlerOptions<Reviewer> =
+    const options: PinPointHandlerOptions<Reviewer> =
       Math.random() > 0.5 ? { store, apiKey: "k" } : { store, access: { authenticate: sessionUser } };
-    expectTypeOf(createTcPinpointHandler(options)).toEqualTypeOf<TcPinpointHandler>();
+    expectTypeOf(createPinPointHandler(options)).toEqualTypeOf<PinPointHandler>();
   });
 
   it("rejects mixed policies and a missing store", () => {
     // @ts-expect-error — apiKey and access are mutually exclusive
-    createTcPinpointHandler({ store, apiKey: "k", access: { authenticate: sessionUser } });
+    createPinPointHandler({ store, apiKey: "k", access: { authenticate: sessionUser } });
 
     // @ts-expect-error — publicEndpoints belongs to the apiKey policy
-    createTcPinpointHandler({ store, access: { authenticate: sessionUser }, publicEndpoints: ["GET"] });
+    createPinPointHandler({ store, access: { authenticate: sessionUser }, publicEndpoints: ["GET"] });
 
     // @ts-expect-error — redaction is access.canReadAuthorEmail's job under access
-    createTcPinpointHandler({ store, access: { authenticate: sessionUser }, redactUnauthenticatedEmails: false });
+    createPinPointHandler({ store, access: { authenticate: sessionUser }, redactUnauthenticatedEmails: false });
 
     // @ts-expect-error — a store is required
-    createTcPinpointHandler({ apiKey: "k" });
+    createPinPointHandler({ apiKey: "k" });
   });
 });
 
 describe("the principal", () => {
   it("is null in hooks and transforms under the apiKey policy", () => {
-    createTcPinpointHandler({
+    createPinPointHandler({
       store,
       apiKey: "k",
       beforeCreate: (input, { principal }) => {
@@ -74,16 +74,16 @@ describe("the principal", () => {
 
   it("is never a boolean, whose false would read as a signed-in caller", () => {
     // @ts-expect-error — authenticate must resolve who is calling, not whether
-    createTcPinpointHandler({ store, access: { authenticate: (request) => request.headers.has("x-token") } });
+    createPinPointHandler({ store, access: { authenticate: (request) => request.headers.has("x-token") } });
 
     const tokenCheck = (request: Request) => request.headers.get("x-token") === "secret";
     // @ts-expect-error — nor through a policy typed on its own
-    const standalone: TcPinpointAccessControl<boolean> = { authenticate: tokenCheck };
+    const standalone: PinPointAccessControl<boolean> = { authenticate: tokenCheck };
     void standalone;
   });
 
   it("is inferred from access.authenticate, without null", () => {
-    createTcPinpointHandler({
+    createPinPointHandler({
       store,
       access: {
         authenticate: sessionUser,
@@ -123,7 +123,7 @@ describe("the principal", () => {
 
 describe("the actions authorize decides about", () => {
   it("include the comment writes", () => {
-    expectTypeOf<TcPinpointAction>().toEqualTypeOf<
+    expectTypeOf<PinPointAction>().toEqualTypeOf<
       "create" | "list" | "update" | "delete" | "deleteAll" | "createComment" | "deleteComment"
     >();
   });

@@ -3,17 +3,17 @@ import {
   isStoreLimit,
   isStoreNotFound,
   isStoreValueTooLong,
-  type TcPinpointStore,
-} from "@tc-pinpoint/core";
+  type PinPointStore,
+} from "@pinpoint/core";
 import { ERROR_MESSAGES } from "../constants.js";
-import type { TcPinpointHandlerBaseOptions } from "../options.js";
+import type { PinPointHandlerBaseOptions } from "../options.js";
 import type { Pipeline, Scope } from "../pipeline.js";
 import { commentCreateSchema } from "../validation.js";
 
 interface CreateCommentDependencies<Principal> {
-  store: TcPinpointStore;
+  store: PinPointStore;
   pipeline: Pipeline<Principal>;
-  beforeComment: TcPinpointHandlerBaseOptions<Principal>["beforeComment"];
+  beforeComment: PinPointHandlerBaseOptions<Principal>["beforeComment"];
 }
 
 /** `POST` with a `feedbackId` — add a comment to that feedback's thread, idempotent on `clientId`. */
@@ -57,7 +57,7 @@ export function createCommentOperation<Principal>({
       if (isStoreNotFound(error)) return pipeline.error(scope, 404, ERROR_MESSAGES.feedbackNotFound);
       if (isStoreLimit(error)) return pipeline.error(scope, 409, ERROR_MESSAGES.tooManyComments);
       if (isStoreValueTooLong(error)) return pipeline.refuseTooLong(scope, error);
-      return pipeline.fail(scope, "[tcpinpoint] Failed to add comment", error);
+      return pipeline.fail(scope, "[pinpoint] Failed to add comment", error);
     }
   };
 }

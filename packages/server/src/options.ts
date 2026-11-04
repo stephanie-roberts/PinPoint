@@ -1,11 +1,11 @@
-import type { CommentPayload, FeedbackCreateInput, FeedbackRecord, TcPinpointStore } from "@tc-pinpoint/core";
+import type { CommentPayload, FeedbackCreateInput, FeedbackRecord, PinPointStore } from "@pinpoint/core";
 import type { WebhookConfig } from "./webhooks.js";
 
-/** HTTP methods served by `createTcPinpointHandler`. */
-export type TcPinpointHttpMethod = "GET" | "POST" | "PATCH" | "DELETE" | "OPTIONS";
+/** HTTP methods served by `createPinPointHandler`. */
+export type PinPointHttpMethod = "GET" | "POST" | "PATCH" | "DELETE" | "OPTIONS";
 
-/** What a request does, as `TcPinpointAccessControl.authorize` sees it. */
-export type TcPinpointAction =
+/** What a request does, as `PinPointAccessControl.authorize` sees it. */
+export type PinPointAction =
   | "create"
   | "list"
   | "update"
@@ -15,15 +15,15 @@ export type TcPinpointAction =
   | "deleteComment";
 
 /** The request being served, and who sent it. */
-export interface TcPinpointRequestContext<Principal> {
+export interface PinPointRequestContext<Principal> {
   request: Request;
   /** Whoever `access.authenticate` resolved — always `null` under the `apiKey` policy. */
   principal: Principal;
 }
 
-/** What `TcPinpointAccessControl.authorize` decides about. */
-export interface TcPinpointAuthorizationContext<Principal> extends TcPinpointRequestContext<Principal> {
-  action: TcPinpointAction;
+/** What `PinPointAccessControl.authorize` decides about. */
+export interface PinPointAuthorizationContext<Principal> extends PinPointRequestContext<Principal> {
+  action: PinPointAction;
   /** Project the request targets: the body's for writes, the query's for reads. */
   projectName: string;
   /** Target record of `update` and `delete`; the feedback whose thread `createComment` and `deleteComment` target. */
@@ -35,7 +35,7 @@ export interface TcPinpointAuthorizationContext<Principal> extends TcPinpointReq
   commentId?: string;
   /**
    * `true` when nothing is being done: the handler fills in the
-   * `permissions` of a response — see `TcPinpointAccessControl.authorize`.
+   * `permissions` of a response — see `PinPointAccessControl.authorize`.
    * `request` is then the response's own (a `GET`, `POST` or `PATCH`),
    * whatever `action` asks about: decide by `action`, not `request.method`.
    */
@@ -46,7 +46,7 @@ export interface TcPinpointAuthorizationContext<Principal> extends TcPinpointReq
  * Who `access.authenticate` may resolve: a user object, an id, a token's
  * claims. Never a boolean — a `false` check would read as a signed-in caller.
  */
-export type TcPinpointPrincipal = object | string | number;
+export type PinPointPrincipal = object | string | number;
 
 /**
  * A custom access policy — sessions, JWTs, roles — resolved from the standard
@@ -83,9 +83,9 @@ export type TcPinpointPrincipal = object | string | number;
  *
  * A throw from any of them answers a logged 500.
  */
-export interface TcPinpointAccessControl<Principal extends TcPinpointPrincipal> {
+export interface PinPointAccessControl<Principal extends PinPointPrincipal> {
   authenticate(request: Request): Principal | null | undefined | Promise<Principal | null | undefined>;
-  authorize?(context: TcPinpointAuthorizationContext<Principal>): boolean | Promise<boolean>;
+  authorize?(context: PinPointAuthorizationContext<Principal>): boolean | Promise<boolean>;
   canReadAuthorEmail?(principal: Principal): boolean | Promise<boolean>;
   canCommentAsTeam?(principal: Principal): boolean | Promise<boolean>;
 }
@@ -94,7 +94,7 @@ export interface TcPinpointAccessControl<Principal extends TcPinpointPrincipal> 
  * What a DELETE removes: one record, or a whole project (`deleteAll`) —
  * never a comment, whose deletion runs no hook.
  */
-export type TcPinpointDeletionTarget =
+export type PinPointDeletionTarget =
   | { kind: "single"; id: string; projectName: string }
   | { kind: "project"; projectName: string };
 
@@ -111,11 +111,11 @@ export type TcPinpointDeletionTarget =
  * and the request answers 502), e.g. when a resource tied to the feedback
  * could not be cleaned up and the delete must be retried.
  */
-export interface TcPinpointLifecycleHooks<Principal> {
-  onCreated?(feedback: FeedbackRecord, context: TcPinpointRequestContext<Principal>): void | Promise<void>;
-  onUpdated?(feedback: FeedbackRecord, context: TcPinpointRequestContext<Principal>): void | Promise<void>;
-  onDeleting?(target: TcPinpointDeletionTarget, context: TcPinpointRequestContext<Principal>): void | Promise<void>;
-  onDeleted?(target: TcPinpointDeletionTarget, context: TcPinpointRequestContext<Principal>): void | Promise<void>;
+export interface PinPointLifecycleHooks<Principal> {
+  onCreated?(feedback: FeedbackRecord, context: PinPointRequestContext<Principal>): void | Promise<void>;
+  onUpdated?(feedback: FeedbackRecord, context: PinPointRequestContext<Principal>): void | Promise<void>;
+  onDeleting?(target: PinPointDeletionTarget, context: PinPointRequestContext<Principal>): void | Promise<void>;
+  onDeleted?(target: PinPointDeletionTarget, context: PinPointRequestContext<Principal>): void | Promise<void>;
 }
 
 /**
@@ -128,14 +128,14 @@ export interface TcPinpointLifecycleHooks<Principal> {
  * the context first and type-checks here anyway, then drops the context:
  * adapt it — `{ error: (message, { error, ...context }) => log.error({ err: error, ...context }, message) }`.
  */
-export interface TcPinpointLogger {
+export interface PinPointLogger {
   error(message: string, context: Record<string, unknown>): void | Promise<void>;
 }
 
 /** Options shared by both access policies. */
-export interface TcPinpointHandlerBaseOptions<Principal> {
-  /** Persistence backend — any `TcPinpointStore` (Prisma, Drizzle, memory, your own). */
-  store: TcPinpointStore;
+export interface PinPointHandlerBaseOptions<Principal> {
+  /** Persistence backend — any `PinPointStore` (Prisma, Drizzle, memory, your own). */
+  store: PinPointStore;
   /**
    * Allowed CORS origins (exact match) — when set, only these origins get CORS
    * headers. When unset, no CORS headers are emitted and browsers block
@@ -177,7 +177,7 @@ export interface TcPinpointHandlerBaseOptions<Principal> {
    */
   beforeCreate?(
     input: FeedbackCreateInput,
-    context: TcPinpointRequestContext<Principal>,
+    context: PinPointRequestContext<Principal>,
   ): FeedbackCreateInput | Promise<FeedbackCreateInput>;
   /**
    * `beforeCreate` for the replies of a thread: rewrite the validated comment
@@ -191,7 +191,7 @@ export interface TcPinpointHandlerBaseOptions<Principal> {
    */
   beforeComment?(
     input: CommentPayload,
-    context: TcPinpointRequestContext<Principal>,
+    context: PinPointRequestContext<Principal>,
   ): CommentPayload | Promise<CommentPayload>;
   /**
    * Transform each record right before it is serialized in a response, e.g.
@@ -199,11 +199,11 @@ export interface TcPinpointHandlerBaseOptions<Principal> {
    * when the requester may not read it, afterwards — on the record and on
    * each comment of its thread.
    */
-  presentFeedback?(feedback: FeedbackRecord, context: TcPinpointRequestContext<Principal>): FeedbackRecord;
-  /** Lifecycle side effects — see `TcPinpointLifecycleHooks`. */
-  hooks?: TcPinpointLifecycleHooks<Principal>;
+  presentFeedback?(feedback: FeedbackRecord, context: PinPointRequestContext<Principal>): FeedbackRecord;
+  /** Lifecycle side effects — see `PinPointLifecycleHooks`. */
+  hooks?: PinPointLifecycleHooks<Principal>;
   /** Where unexpected failures are reported. Defaults to `console.error`. */
-  logger?: TcPinpointLogger;
+  logger?: PinPointLogger;
   /**
    * Map an unexpected failure to the `error` string sent to the client.
    * Return `undefined` for the default (`"Internal server error"`). Store
@@ -214,7 +214,7 @@ export interface TcPinpointHandlerBaseOptions<Principal> {
 }
 
 /** The built-in shared-secret policy — `adapter-prisma`'s historical behaviour. */
-export interface TcPinpointApiKeyHandlerOptions extends TcPinpointHandlerBaseOptions<null> {
+export interface PinPointApiKeyHandlerOptions extends PinPointHandlerBaseOptions<null> {
   /**
    * Shared secret expected as `Authorization: Bearer {apiKey}`.
    *
@@ -233,7 +233,7 @@ export interface TcPinpointApiKeyHandlerOptions extends TcPinpointHandlerBaseOpt
    * Defaults to `['POST', 'OPTIONS']` when `apiKey` is set — POST must stay open
    * because the browser widget submits feedback from unauthenticated contexts.
    */
-  publicEndpoints?: ReadonlyArray<TcPinpointHttpMethod>;
+  publicEndpoints?: ReadonlyArray<PinPointHttpMethod>;
   /**
    * Whether destructive endpoints (DELETE, PATCH) require `apiKey`.
    *
@@ -270,10 +270,10 @@ export interface TcPinpointApiKeyHandlerOptions extends TcPinpointHandlerBaseOpt
 }
 
 /** A custom access policy (sessions, JWTs, roles) in place of `apiKey`. */
-export interface TcPinpointAccessHandlerOptions<Principal extends TcPinpointPrincipal>
-  extends TcPinpointHandlerBaseOptions<Principal> {
+export interface PinPointAccessHandlerOptions<Principal extends PinPointPrincipal>
+  extends PinPointHandlerBaseOptions<Principal> {
   /**
-   * Who is calling and what they may do — see `TcPinpointAccessControl`.
+   * Who is calling and what they may do — see `PinPointAccessControl`.
    *
    * Such a policy may authenticate with cookies, which browsers attach to
    * forged cross-site requests too, so POST/PATCH/DELETE are guarded against
@@ -285,7 +285,7 @@ export interface TcPinpointAccessHandlerOptions<Principal extends TcPinpointPrin
    * in `allowedOrigins`. Lists are sent with `Cache-Control: no-store`: they
    * depend on the principal, which the browser cache cannot tell apart.
    */
-  access: TcPinpointAccessControl<Principal>;
+  access: PinPointAccessControl<Principal>;
   /** `apiKey` policy only. */
   apiKey?: never;
   /** `apiKey` policy only. */
@@ -296,15 +296,15 @@ export interface TcPinpointAccessHandlerOptions<Principal extends TcPinpointPrin
   redactUnauthenticatedEmails?: never;
 }
 
-/** Options of `createTcPinpointHandler`: the `apiKey` policy XOR a custom `access` policy. */
-export type TcPinpointHandlerOptions<Principal extends TcPinpointPrincipal = TcPinpointPrincipal> =
-  | TcPinpointApiKeyHandlerOptions
-  | TcPinpointAccessHandlerOptions<Principal>;
+/** Options of `createPinPointHandler`: the `apiKey` policy XOR a custom `access` policy. */
+export type PinPointHandlerOptions<Principal extends PinPointPrincipal = PinPointPrincipal> =
+  | PinPointApiKeyHandlerOptions
+  | PinPointAccessHandlerOptions<Principal>;
 
 /**
- * Object returned by `createTcPinpointHandler` — one handler per HTTP method.
+ * Object returned by `createPinPointHandler` — one handler per HTTP method.
  */
-export interface TcPinpointHandler {
+export interface PinPointHandler {
   OPTIONS: (request: Request) => Response;
   POST: (request: Request) => Promise<Response>;
   GET: (request: Request) => Promise<Response>;

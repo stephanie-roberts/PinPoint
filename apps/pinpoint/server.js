@@ -8,7 +8,7 @@
 //   /api/auth/*       sign-in with a code sent by email
 //   /api/sites        your client sites and who's invited to them (team only)
 //   /api/assignments  who on your team each piece of feedback is assigned to (team only)
-//   /api/tcpinpoint   the API the widget and the inbox talk to
+//   /api/pinpoint   the API the widget and the inbox talk to
 //
 // Everything is saved as JSON files in data/. No database needed.
 // Emails (sign-in codes and notifications) go through Postmark.
@@ -23,8 +23,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCollectionStore, StorePersistenceError } from "@tc-pinpoint/adapter-kit";
-import { createTcPinpointHandler } from "@tc-pinpoint/server";
+import { createCollectionStore, StorePersistenceError } from "@pinpoint/adapter-kit";
+import { createPinPointHandler } from "@pinpoint/server";
 import { createAssignments } from "./lib/assignments.js";
 import { AuthError, createAuth } from "./lib/auth.js";
 import { createMailer } from "./lib/email.js";
@@ -40,26 +40,26 @@ if (existsSync(path.join(here, ".env"))) process.loadEnvFile(path.join(here, ".e
 // ------------------------------------------------------------------ settings
 
 const port = Number(process.env.PORT || 3000);
-const dataFile = path.resolve(here, process.env.TC_PINPOINT_DATA || "data/snags.json");
+const dataFile = path.resolve(here, process.env.PINPOINT_DATA || "data/snags.json");
 const dataDir = path.dirname(dataFile);
 // Hosts like Railway and Render sit behind a proxy: trust its headers for the visitor's address and https.
-const trustProxy = process.env.TC_PINPOINT_TRUST_PROXY === "true";
-const teamDomains = (process.env.TC_PINPOINT_TEAM_DOMAINS || "example.com")
+const trustProxy = process.env.PINPOINT_TRUST_PROXY === "true";
+const teamDomains = (process.env.PINPOINT_TEAM_DOMAINS || "example.com")
   .split(",")
   .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
   .filter(Boolean);
 
 const mailer = createMailer({
   token: process.env.POSTMARK_SERVER_TOKEN,
-  from: process.env.TC_PINPOINT_EMAIL_FROM,
-  apiUrl: process.env.TC_PINPOINT_POSTMARK_URL, // for testing only
+  from: process.env.PINPOINT_EMAIL_FROM,
+  apiUrl: process.env.PINPOINT_POSTMARK_URL, // for testing only
 });
 
-if (mailer.live && !process.env.TC_PINPOINT_EMAIL_FROM) {
-  console.error("[pinpoint] Set TC_PINPOINT_EMAIL_FROM in .env: the address codes are sent from.");
+if (mailer.live && !process.env.PINPOINT_EMAIL_FROM) {
+  console.error("[pinpoint] Set PINPOINT_EMAIL_FROM in .env: the address codes are sent from.");
   process.exit(1);
 }
-if (!mailer.live && !dev && process.env.TC_PINPOINT_PRINT_CODES !== "true") {
+if (!mailer.live && !dev && process.env.PINPOINT_PRINT_CODES !== "true") {
   console.error("[pinpoint] Set POSTMARK_SERVER_TOKEN in .env so sign-in codes can be emailed.");
   process.exit(1);
 }
@@ -154,7 +154,7 @@ const CLIENT_ACTIONS = new Set(["create", "list", "createComment"]);
 const asAuthor = (input, { principal }) => ({ ...input, authorName: principal.name, authorEmail: principal.email });
 
 function buildHandler() {
-  return createTcPinpointHandler({
+  return createPinPointHandler({
     store,
     allowedOrigins: sites.origins(),
     access: {
@@ -408,7 +408,7 @@ const server = createServer(async (req, res) => {
   try {
     const { pathname } = new URL(req.url, "http://localhost");
 
-    if (pathname === "/api/tcpinpoint") {
+    if (pathname === "/api/pinpoint") {
       const method = req.method in handler ? req.method : null;
       if (!method) {
         res.writeHead(405, { Allow: "GET, POST, PATCH, DELETE, OPTIONS" });

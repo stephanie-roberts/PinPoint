@@ -1,14 +1,3 @@
-/*!
- * PinPoint widget: draw a box on the page, leave a note, see and reply to notes already left.
- *
- * Loaded by pinpoint.js once someone has signed in:
- *
- *   <script src="https://your-pinpoint-server/pinpoint.js" data-site="test" defer></script>
- *
- * It talks to the same API as the inbox (/api/tcpinpoint), so feedback left here shows up there.
- * Everything is drawn inside a closed shadow root, so the site's CSS can't change it and its CSS
- * can't leak onto the site.
- */
 (() => {
   if (window.PinPointWidget) return;
 
@@ -18,7 +7,6 @@
   const CLOSED = new Set(["resolved", "wont_fix"]);
   const MIN_BOX = 8; // a drag smaller than this counts as a click on one element
 
-  // The styles are in pinpoint.css (served at /pinpoint.css, beside this file).
 
   const ICONS = {
     pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
@@ -30,7 +18,7 @@
     close: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   };
 
-  // ---------------------------------------------------------------- small helpers
+  // small helpers
 
   function h(tag, attrs = {}, children = []) {
     const el = document.createElement(tag);
@@ -225,7 +213,7 @@
 
   function init({ endpoint, projectName, token, identity, onAuthError }) {
     const host = document.createElement("div");
-    host.setAttribute("data-tcpinpoint-ignore", "");
+    host.setAttribute("data-pinpoint-ignore", "");
     const shadow = host.attachShadow({ mode: "closed" });
     // Styles come from pinpoint.css. Stay hidden until they've loaded, so nothing flashes up unstyled.
     host.style.visibility = "hidden";
@@ -243,7 +231,7 @@
     const page = location.pathname;
     const server = new URL(endpoint).origin;
     // Leave PinPoint itself (this widget and the sign-in chip) out of screenshots.
-    const isOurs = (el) => el === host || el.hasAttribute?.("data-tcpinpoint-ignore");
+    const isOurs = (el) => el === host || el.hasAttribute?.("data-pinpoint-ignore");
     let items = []; // feedback on this page, oldest first
     // Your team can assign feedback here too. Clients never see it (the server only answers your team).
     const team = identity.role === "team";
@@ -885,11 +873,11 @@
     renderToolbar();
     load()
       .then(() => {
-        // A link from an email or the inbox (?tcpinpoint=<id>) opens that feedback.
+        // A link from an email or the inbox (?pinpoint=<id>) opens that feedback.
         const params = new URLSearchParams(location.search);
-        const wanted = params.get("tcpinpoint");
+        const wanted = params.get("pinpoint");
         if (!wanted) return;
-        params.delete("tcpinpoint");
+        params.delete("pinpoint");
         const rest = params.toString();
         const clean = `${location.pathname}${rest ? `?${rest}` : ""}${location.hash}`;
         history.replaceState(history.state, "", clean);

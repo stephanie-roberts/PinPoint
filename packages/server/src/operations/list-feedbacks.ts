@@ -1,10 +1,10 @@
-import type { FeedbackListPermissions, TcPinpointCapabilities, TcPinpointStore } from "@tc-pinpoint/core";
+import type { FeedbackListPermissions, PinPointCapabilities, PinPointStore } from "@pinpoint/core";
 import { LIST_QUERY_KEYS } from "../constants.js";
 import type { Pipeline } from "../pipeline.js";
 import { getQuerySchema } from "../validation.js";
 
 interface ListFeedbacksDependencies<Principal> {
-  store: TcPinpointStore;
+  store: PinPointStore;
   pipeline: Pipeline<Principal>;
 }
 
@@ -50,14 +50,14 @@ export function listFeedbacksOperation<Principal>({ store, pipeline }: ListFeedb
           capabilities: {
             comments: store.addComment !== undefined,
             deleteComments: store.deleteComment !== undefined,
-          } satisfies TcPinpointCapabilities,
+          } satisfies PinPointCapabilities,
           // And the actions this requester would be refused.
           permissions: { canDeleteAll } satisfies FeedbackListPermissions,
         },
         { headers: { "Cache-Control": pipeline.listCacheControl } },
       );
     } catch (error) {
-      return pipeline.fail(scope, "[tcpinpoint] Failed to fetch feedbacks", error);
+      return pipeline.fail(scope, "[pinpoint] Failed to fetch feedbacks", error);
     }
   };
 }

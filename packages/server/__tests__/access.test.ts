@@ -1,16 +1,16 @@
-import { MemoryStore } from "@tc-pinpoint/adapter-memory";
-import type { FeedbackRecord, TcPinpointStore } from "@tc-pinpoint/core";
+import { MemoryStore } from "@pinpoint/adapter-memory";
+import type { FeedbackRecord, PinPointStore } from "@pinpoint/core";
 import { describe, expect, it, vi } from "vitest";
 import {
-  createTcPinpointHandler,
-  type TcPinpointAccessControl,
-  type TcPinpointAuthorizationContext,
-  type TcPinpointHandler,
-  type TcPinpointLogger,
+  createPinPointHandler,
+  type PinPointAccessControl,
+  type PinPointAuthorizationContext,
+  type PinPointHandler,
+  type PinPointLogger,
 } from "../src/index.js";
 import { validPayloadNoAnnotations } from "./fixtures.js";
 
-const ENDPOINT = "http://localhost/api/tcpinpoint";
+const ENDPOINT = "http://localhost/api/pinpoint";
 const PROJECT = validPayloadNoAnnotations.projectName;
 
 interface Reviewer {
@@ -22,7 +22,7 @@ const ADMIN: Reviewer = { email: "admin@example.com", isAdmin: true };
 const GUEST: Reviewer = { email: "guest@example.com", isAdmin: false };
 
 /** Session stand-in: the caller identifies through a header, as a cookie session would. */
-function sessionAccess(overrides: Partial<TcPinpointAccessControl<Reviewer>> = {}): TcPinpointAccessControl<Reviewer> {
+function sessionAccess(overrides: Partial<PinPointAccessControl<Reviewer>> = {}): PinPointAccessControl<Reviewer> {
   return {
     authenticate: (request) => {
       const email = request.headers.get("x-session");
@@ -46,17 +46,17 @@ function listRequest(session?: Reviewer, projectName = PROJECT): Request {
   });
 }
 
-const silentLogger = () => ({ error: vi.fn<TcPinpointLogger["error"]>() });
+const silentLogger = () => ({ error: vi.fn<PinPointLogger["error"]>() });
 
-async function createFeedback(handler: TcPinpointHandler, session: Reviewer = ADMIN): Promise<FeedbackRecord> {
+async function createFeedback(handler: PinPointHandler, session: Reviewer = ADMIN): Promise<FeedbackRecord> {
   const response = await handler.POST(jsonRequest("POST", validPayloadNoAnnotations, session));
   expect(response.status).toBe(201);
   return (await response.json()) as FeedbackRecord;
 }
 
-describe("createTcPinpointHandler — access", () => {
+describe("createPinPointHandler — access", () => {
   it("answers 401 on every method when authenticate resolves no principal", async () => {
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), access: sessionAccess() });
+    const handler = createPinPointHandler({ store: new MemoryStore(), access: sessionAccess() });
 
     expect((await handler.POST(jsonRequest("POST", validPayloadNoAnnotations))).status).toBe(401);
     expect((await handler.GET(listRequest())).status).toBe(401);
@@ -68,7 +68,7 @@ describe("createTcPinpointHandler — access", () => {
 
   it("fails closed when authenticate resolves undefined", async () => {
     const store = new MemoryStore();
-    const handler = createTcPinpointHandler({ store, access: { authenticate: () => undefined } });
+    const handler = createPinPointHandler({ store, access: { authenticate: () => undefined } });
 
     const response = await handler.POST(jsonRequest("POST", validPayloadNoAnnotations));
 
@@ -81,9 +81,9 @@ describe("createTcPinpointHandler — access", () => {
     const store = new MemoryStore();
     // TypeScript refuses a boolean principal (options.test-d.ts); plain JavaScript can still pass one.
     const tokenCheck = { authenticate: (request: Request) => request.headers.get("x-token") === "secret" };
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store,
-      access: tokenCheck as unknown as TcPinpointAccessControl<string>,
+      access: tokenCheck as unknown as PinPointAccessControl<string>,
     });
     const withToken = (request: Request, token: string) => {
       const headers = new Headers(request.headers);
@@ -110,14 +110,14 @@ describe("createTcPinpointHandler — access", () => {
   });
 
   it.each([0, ""])("fails closed when authenticate resolves %j", async (principal) => {
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), access: { authenticate: () => principal } });
+    const handler = createPinPointHandler({ store: new MemoryStore(), access: { authenticate: () => principal } });
 
     expect((await handler.GET(listRequest())).status).toBe(401);
   });
 
   it("passes action, project and target id to authorize and answers 403 when it refuses", async () => {
-    const decisions: Array<TcPinpointAuthorizationContext<Reviewer>> = [];
-    const handler = createTcPinpointHandler({
+    const decisions: Array<PinPointAuthorizationContext<Reviewer>> = [];
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       access: sessionAccess({
         authorize: (context) => {
@@ -179,8 +179,8 @@ describe("createTcPinpointHandler — access", () => {
         waitUntil,
         hooks: { onCreated },
       };
-      const claimed = createTcPinpointHandler(options);
-      const rewritten = createTcPinpointHandler({
+      const claimed = createPinPointHandler(options);
+      const rewritten = createPinPointHandler({
         ...options,
         beforeCreate: (input) => ({ ...input, projectName: "other-project" }),
       });
@@ -206,7 +206,7 @@ describe("createTcPinpointHandler — access", () => {
   });
 
   it("blanks authorEmail in list and PATCH responses for principals that may not read it", async () => {
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       access: sessionAccess({ canReadAuthorEmail: (principal) => principal.isAdmin }),
     });
@@ -226,7 +226,7 @@ describe("createTcPinpointHandler — access", () => {
   });
 
   it("blanks authorEmail for every principal when canReadAuthorEmail is not set", async () => {
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), access: sessionAccess() });
+    const handler = createPinPointHandler({ store: new MemoryStore(), access: sessionAccess() });
 
     const created = await createFeedback(handler, ADMIN);
     const listed = ((await (await handler.GET(listRequest(ADMIN))).json()) as { feedbacks: FeedbackRecord[] })
@@ -241,7 +241,7 @@ describe("createTcPinpointHandler — access", () => {
   it("reveals authorEmail, and the team role, on a true answer only", async () => {
     // A visitor principal lacks the flag its policy reads: JavaScript, or a principal typed `any`.
     const VISITOR = { email: "" } as Reviewer;
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       access: {
         authenticate: (request) => (request.headers.get("x-session") === ADMIN.email ? ADMIN : VISITOR),
@@ -281,8 +281,8 @@ describe("createTcPinpointHandler — access", () => {
     const access = {
       authenticate: (request: Request) => (request.headers.get("x-admin") ? { roles: ["admin"] } : { visitor: true }),
       canReadAuthorEmail: (principal: { roles?: string[] }) => principal.roles?.includes("admin"),
-    } as unknown as TcPinpointAccessControl<object>;
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), access });
+    } as unknown as PinPointAccessControl<object>;
+    const handler = createPinPointHandler({ store: new MemoryStore(), access });
     const { id } = (await (
       await handler.POST(
         new Request(ENDPOINT, {
@@ -314,8 +314,8 @@ describe("createTcPinpointHandler — access", () => {
     const access = {
       authenticate: () => ({ id: "u" }),
       canCommentAsTeam: () => "yes",
-    } as unknown as TcPinpointAccessControl<object>;
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), access });
+    } as unknown as PinPointAccessControl<object>;
+    const handler = createPinPointHandler({ store: new MemoryStore(), access });
     const { id } = await createFeedback(handler);
 
     const reply = await handler.POST(
@@ -335,7 +335,7 @@ describe("createTcPinpointHandler — access", () => {
 
   it("applies the email permission to fresh and replayed POST responses", async () => {
     const store = new MemoryStore();
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store,
       access: sessionAccess({ canReadAuthorEmail: async (principal) => principal.isAdmin }),
     });
@@ -353,7 +353,7 @@ describe("createTcPinpointHandler — access", () => {
   });
 
   it("keeps echoing authorEmail to the anonymous submitter under the apiKey policy", async () => {
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), apiKey: "secret-key" });
+    const handler = createPinPointHandler({ store: new MemoryStore(), apiKey: "secret-key" });
 
     const fresh = await handler.POST(jsonRequest("POST", validPayloadNoAnnotations));
     const replayed = await handler.POST(jsonRequest("POST", validPayloadNoAnnotations));
@@ -363,7 +363,7 @@ describe("createTcPinpointHandler — access", () => {
   });
 
   it("never lets the browser cache a list that depends on the principal", async () => {
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), access: sessionAccess() });
+    const handler = createPinPointHandler({ store: new MemoryStore(), access: sessionAccess() });
 
     const response = await handler.GET(listRequest(ADMIN));
 
@@ -372,7 +372,7 @@ describe("createTcPinpointHandler — access", () => {
   });
 
   it("keeps the apiKey policy's short private cache on lists", async () => {
-    const handler = createTcPinpointHandler({ store: new MemoryStore(), requireAuthForDestructive: false });
+    const handler = createPinPointHandler({ store: new MemoryStore(), requireAuthForDestructive: false });
 
     expect((await handler.GET(listRequest())).headers.get("Cache-Control")).toBe("private, max-age=5");
   });
@@ -380,7 +380,7 @@ describe("createTcPinpointHandler — access", () => {
   it("does not require an apiKey in production when a custom access policy is passed", () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
-      expect(() => createTcPinpointHandler({ store: new MemoryStore(), access: sessionAccess() })).not.toThrow();
+      expect(() => createPinPointHandler({ store: new MemoryStore(), access: sessionAccess() })).not.toThrow();
     } finally {
       vi.unstubAllEnvs();
     }
@@ -392,7 +392,7 @@ describe("createTcPinpointHandler — access", () => {
  * as a minimal third-party adapter may — every required method delegates to
  * a real `MemoryStore`.
  */
-function storeWithoutOwnershipCheck(backing = new MemoryStore()): TcPinpointStore {
+function storeWithoutOwnershipCheck(backing = new MemoryStore()): PinPointStore {
   return {
     createFeedback: (data) => backing.createFeedback(data),
     getFeedbacks: (query) => backing.getFeedbacks(query),
@@ -409,23 +409,23 @@ const projectScopedAccess = () =>
     authorize: ({ principal, projectName }) => projectName === (principal.isAdmin ? PROJECT : "guest-project"),
   });
 
-describe("createTcPinpointHandler — project ownership of per-record mutations", () => {
+describe("createPinPointHandler — project ownership of per-record mutations", () => {
   it("refuses to start with a custom authorize over a store without verifyProjectOwnership", () => {
     expect(() =>
-      createTcPinpointHandler({ store: storeWithoutOwnershipCheck(), access: projectScopedAccess() }),
+      createPinPointHandler({ store: storeWithoutOwnershipCheck(), access: projectScopedAccess() }),
     ).toThrow(/needs a store implementing `verifyProjectOwnership`/);
   });
 
   it("still starts over such a store when no policy scopes callers to projects", () => {
     expect(() =>
-      createTcPinpointHandler({ store: storeWithoutOwnershipCheck(), access: sessionAccess() }),
+      createPinPointHandler({ store: storeWithoutOwnershipCheck(), access: sessionAccess() }),
     ).not.toThrow();
-    expect(() => createTcPinpointHandler({ store: storeWithoutOwnershipCheck(), apiKey: "secret-key" })).not.toThrow();
+    expect(() => createPinPointHandler({ store: storeWithoutOwnershipCheck(), apiKey: "secret-key" })).not.toThrow();
   });
 
   it("answers 404 and leaves the record untouched when the claimed project is not the record's", async () => {
     const store = new MemoryStore();
-    const handler = createTcPinpointHandler({ store, access: projectScopedAccess() });
+    const handler = createPinPointHandler({ store, access: projectScopedAccess() });
     const created = await handler.POST(
       jsonRequest("POST", { ...validPayloadNoAnnotations, projectName: "guest-project" }, GUEST),
     );
@@ -446,7 +446,7 @@ describe("createTcPinpointHandler — project ownership of per-record mutations"
   });
 });
 
-describe("createTcPinpointHandler — access callback failures", () => {
+describe("createPinPointHandler — access callback failures", () => {
   const ALLOWED_ORIGIN = "https://client-site.example";
   const sessionStoreError = new Error("session database unreachable: connection refused at 10.0.0.5:5432");
 
@@ -458,7 +458,7 @@ describe("createTcPinpointHandler — access callback failures", () => {
 
   it("answers a logged, CORS-readable 500 on every method when authenticate throws", async () => {
     const logger = silentLogger();
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       access: sessionAccess({ authenticate: () => Promise.reject(sessionStoreError) }),
       allowedOrigins: [ALLOWED_ORIGIN],
@@ -477,16 +477,16 @@ describe("createTcPinpointHandler — access callback failures", () => {
       expect(response.status).toBe(500);
       expect(response.headers.get("Access-Control-Allow-Origin")).toBe(ALLOWED_ORIGIN);
       expect(await response.json()).toEqual({ error: "Internal server error" });
-      expect(logger.error).toHaveBeenLastCalledWith("[tcpinpoint] Failed to authenticate request", {
+      expect(logger.error).toHaveBeenLastCalledWith("[pinpoint] Failed to authenticate request", {
         error: sessionStoreError,
         method,
-        path: "/api/tcpinpoint",
+        path: "/api/pinpoint",
       });
     }
   });
 
   it("answers the 500 without the email when canReadAuthorEmail throws", async () => {
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       access: sessionAccess({
         canReadAuthorEmail: () => {
@@ -507,7 +507,7 @@ describe("createTcPinpointHandler — access callback failures", () => {
   it("answers a logged 500 and stores nothing when authorize throws on a create", async () => {
     const store = new MemoryStore();
     const logger = silentLogger();
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store,
       access: sessionAccess({ authorize: () => Promise.reject(sessionStoreError) }),
       logger,
@@ -516,14 +516,14 @@ describe("createTcPinpointHandler — access callback failures", () => {
     const response = await handler.POST(jsonRequest("POST", validPayloadNoAnnotations, ADMIN));
 
     expect(response.status).toBe(500);
-    expect(logger.error).toHaveBeenCalledWith("[tcpinpoint] Failed to create feedback", expect.anything());
+    expect(logger.error).toHaveBeenCalledWith("[pinpoint] Failed to create feedback", expect.anything());
     expect((await store.getFeedbacks({ projectName: PROJECT })).total).toBe(0);
   });
 });
 
 /**
  * Store errors as thrown by an adapter that bundles its own copy of
- * `@tc-pinpoint/core` (every published package does): same stable `code`,
+ * `@pinpoint/core` (every published package does): same stable `code`,
  * a class identity the server's `instanceof` checks do not know.
  */
 class BundledStoreNotFoundError extends Error {
@@ -533,7 +533,7 @@ class BundledStoreDuplicateError extends Error {
   readonly code = "STORE_DUPLICATE" as const;
 }
 
-describe("createTcPinpointHandler — store errors from another bundled copy of core", () => {
+describe("createPinPointHandler — store errors from another bundled copy of core", () => {
   it("answers 404 when the record vanishes between the ownership check and the mutation", async () => {
     class RacingStore extends MemoryStore {
       override updateFeedback(): Promise<FeedbackRecord> {
@@ -543,7 +543,7 @@ describe("createTcPinpointHandler — store errors from another bundled copy of 
         return Promise.reject(new BundledStoreNotFoundError("Record not found"));
       }
     }
-    const handler = createTcPinpointHandler({ store: new RacingStore(), access: sessionAccess() });
+    const handler = createPinPointHandler({ store: new RacingStore(), access: sessionAccess() });
     const feedback = await createFeedback(handler);
 
     const update = await handler.PATCH(
@@ -579,7 +579,7 @@ describe("createTcPinpointHandler — store errors from another bundled copy of 
       diagnostics: null,
     });
     // Without `createFeedbackIfAbsent`, only the duplicate error reports the race.
-    const handler = createTcPinpointHandler({ store: storeWithoutOwnershipCheck(store), access: sessionAccess() });
+    const handler = createPinPointHandler({ store: storeWithoutOwnershipCheck(store), access: sessionAccess() });
 
     const response = await handler.POST(jsonRequest("POST", validPayloadNoAnnotations, ADMIN));
 

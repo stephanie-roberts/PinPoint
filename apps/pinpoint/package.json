@@ -1,5 +1,5 @@
 {
-  "name": "@tc-pinpoint/app",
+  "name": "@pinpoint/app",
   "version": "0.1.0",
   "private": true,
   "description": "PinPoint: Snag websites with a pinned feedback widget, and work through the snags in one inbox",
@@ -13,8 +13,8 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@tc-pinpoint/adapter-kit": "*",
-    "@tc-pinpoint/server": "*",
+    "@pinpoint/adapter-kit": "*",
+    "@pinpoint/server": "*",
     "alpinejs": "^3.14.1",
     "html2canvas-pro": "^2.4.3"
   },

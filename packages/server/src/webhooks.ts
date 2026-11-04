@@ -1,7 +1,7 @@
 /**
  * Outgoing webhook notifications for newly-created feedbacks.
  *
- * Plug a Slack, Discord, or generic HTTP endpoint into `createTcPinpointHandler`
+ * Plug a Slack, Discord, or generic HTTP endpoint into `createPinPointHandler`
  * to receive a payload whenever a feedback is successfully persisted. Webhooks
  * are dispatched as fire-and-forget (`void Promise.all(...)`) so a slow or
  * down receiver never blocks the client response — the feedback is already in
@@ -26,7 +26,7 @@ import type {
   FeedbackType,
   Prettify,
   Serialized,
-} from "@tc-pinpoint/core";
+} from "@pinpoint/core";
 
 /** Supported webhook integrations — drives the JSON body shape. */
 export type WebhookType = "slack" | "discord" | "generic";
@@ -80,7 +80,7 @@ export function checkWebhookTimeouts(configs: readonly WebhookConfig[]): void {
   for (const config of configs) {
     const problem = timeoutProblem(config.timeoutMs);
     if (problem) {
-      throw new Error(`[tcpinpoint] createTcPinpointHandler: webhook to ${webhookOrigin(config.url)}: ${problem}.`);
+      throw new Error(`[pinpoint] createPinPointHandler: webhook to ${webhookOrigin(config.url)}: ${problem}.`);
     }
   }
 }
@@ -475,7 +475,7 @@ function webhookOrigin(url: string): string {
  * `onError` that rethrows or wraps one carries it into its own error.
  */
 function warnWithoutUrl(url: string, message: string): void {
-  console.warn(`[tcpinpoint] ${url ? message.split(url).join(webhookOrigin(url)) : message}`);
+  console.warn(`[pinpoint] ${url ? message.split(url).join(webhookOrigin(url)) : message}`);
 }
 
 /**

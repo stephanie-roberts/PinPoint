@@ -1,7 +1,7 @@
 {
-  "name": "@tc-pinpoint/server",
+  "name": "@pinpoint/server",
   "version": "0.1.1",
-  "description": "Store- and framework-agnostic HTTP handler for PinPoint — any TcPinpointStore behind one Fetch API endpoint",
+  "description": "Store- and framework-agnostic HTTP handler for PinPoint — any PinPointStore behind one Fetch API endpoint",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -28,7 +28,7 @@
     "clean": "rm -rf dist"
   },
   "keywords": [
-    "tcpinpoint",
+    "pinpoint",
     "server",
     "api-handler",
     "fetch-api",
@@ -49,8 +49,8 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@tc-pinpoint/adapter-memory": "*",
-    "@tc-pinpoint/core": "*",
+    "@pinpoint/adapter-memory": "*",
+    "@pinpoint/core": "*",
     "better-auth": "^1.7.9",
     "jose": "^6.2.12"
   }

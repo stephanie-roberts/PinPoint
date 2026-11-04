@@ -5,12 +5,12 @@
  * needs the same three ingredients: turn a `FeedbackCreateInput` into a
  * `FeedbackRecord` (null-normalizing optional fields, stamping ids and
  * timestamps), filter/paginate with `applyFeedbackFilters`, and implement
- * the dedup/update/delete choreography of the `TcPinpointStore` contract.
+ * the dedup/update/delete choreography of the `PinPointStore` contract.
  *
  * `buildFeedbackRecord` / `buildAnnotationRecord` / `buildCommentRecord`
  * cover the first part for any adapter. `createCollectionStore` covers all
  * of it: give it `load`, `persist`, and `generateId`, and it returns a fully
- * conformant `TcPinpointStore` — writing a new snapshot adapter is ~20 lines
+ * conformant `PinPointStore` — writing a new snapshot adapter is ~20 lines
  * plus its storage specifics.
  */
 
@@ -26,7 +26,7 @@ import type {
   FeedbackQuery,
   FeedbackRecord,
   FeedbackUpdateInput,
-  TcPinpointStore,
+  PinPointStore,
 } from "./types.js";
 import { MAX_COMMENTS_PER_FEEDBACK, StoreLimitError, StoreNotFoundError } from "./types.js";
 
@@ -165,14 +165,14 @@ export interface CollectionStoreBackend {
 }
 
 /**
- * A `TcPinpointStore` with the optional `verifyProjectOwnership` guaranteed —
+ * A `PinPointStore` with the optional `verifyProjectOwnership` guaranteed —
  * what `createCollectionStore` returns, which also guarantees
  * `createFeedbackIfAbsent`.
  */
-export type CollectionStore = TcPinpointStore & Required<Pick<TcPinpointStore, "verifyProjectOwnership">>;
+export type CollectionStore = PinPointStore & Required<Pick<PinPointStore, "verifyProjectOwnership">>;
 
 /**
- * Build a fully conformant `TcPinpointStore` on top of a snapshot backend.
+ * Build a fully conformant `PinPointStore` on top of a snapshot backend.
  *
  * The engine implements the whole store contract: clientId dedup (idempotent
  * create, with `createFeedbackIfAbsent` reporting inserts), newest-first
@@ -206,7 +206,7 @@ export type CollectionStore = TcPinpointStore & Required<Pick<TcPinpointStore, "
  *
  * @example
  * ```ts
- * export class MemoryStore implements TcPinpointStore {
+ * export class MemoryStore implements PinPointStore {
  *   private feedbacks: FeedbackRecord[] = [];
  *   private readonly store = createCollectionStore({
  *     load: () => this.feedbacks,
@@ -223,13 +223,13 @@ export type CollectionStore = TcPinpointStore & Required<Pick<TcPinpointStore, "
  */
 export function createCollectionStore(
   backend: CollectionStoreBackend & { comments: true },
-): CollectionStore & Required<Pick<TcPinpointStore, "createFeedbackIfAbsent" | "addComment" | "deleteComment">>;
+): CollectionStore & Required<Pick<PinPointStore, "createFeedbackIfAbsent" | "addComment" | "deleteComment">>;
 export function createCollectionStore(
   backend: CollectionStoreBackend,
-): CollectionStore & Required<Pick<TcPinpointStore, "createFeedbackIfAbsent">>;
+): CollectionStore & Required<Pick<PinPointStore, "createFeedbackIfAbsent">>;
 export function createCollectionStore(
   backend: CollectionStoreBackend,
-): CollectionStore & Required<Pick<TcPinpointStore, "createFeedbackIfAbsent">> {
+): CollectionStore & Required<Pick<PinPointStore, "createFeedbackIfAbsent">> {
   // Every mutation is a load → modify → persist cycle over the WHOLE
   // snapshot, so two interleaved mutations would start from the same
   // snapshot and the last persist would silently drop the other's change
@@ -279,7 +279,7 @@ export function createCollectionStore(
       return { feedback: record, created: true };
     });
 
-  const store: CollectionStore & Required<Pick<TcPinpointStore, "createFeedbackIfAbsent">> = {
+  const store: CollectionStore & Required<Pick<PinPointStore, "createFeedbackIfAbsent">> = {
     createFeedbackIfAbsent,
 
     async createFeedback(data: FeedbackCreateInput): Promise<FeedbackRecord> {

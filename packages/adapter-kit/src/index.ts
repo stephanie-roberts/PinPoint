@@ -1,6 +1,6 @@
 /**
  * Everything needed to build a custom PinPoint store adapter, published —
- * `@tc-pinpoint/core` is an internal (unpublished) package, so this kit is the
+ * `@pinpoint/core` is an internal (unpublished) package, so this kit is the
  * supported dependency for third-party adapters.
  *
  * Two ways to implement a store:
@@ -10,20 +10,20 @@
  *    every store semantic (clientId dedup, serialized mutations, filtering,
  *    pagination, error contract) comes built-in — an adapter is ~20 lines
  *    plus its storage specifics.
- * 2. **Query backends** (SQL, ORMs): implement {@link TcPinpointStore}
+ * 2. **Query backends** (SQL, ORMs): implement {@link PinPointStore}
  *    directly; {@link buildFeedbackRecord} / {@link buildAnnotationRecord} /
  *    {@link buildCommentRecord} handle input→record construction, and the
- *    JSDoc on `TcPinpointStore` documents the exact error contract.
+ *    JSDoc on `PinPointStore` documents the exact error contract.
  *
  * Either way, verify with the conformance suite from
- * `@tc-pinpoint/adapter-kit/testing`:
+ * `@pinpoint/adapter-kit/testing`:
  *
  * @example
  * ```ts
- * import { testTcPinpointStore } from "@tc-pinpoint/adapter-kit/testing";
+ * import { testPinPointStore } from "@pinpoint/adapter-kit/testing";
  * import { MyStore } from "../src/index.js";
  *
- * testTcPinpointStore(() => new MyStore());
+ * testPinPointStore(() => new MyStore());
  * ```
  */
 
@@ -65,8 +65,8 @@ export type {
   ScreenshotRegion,
   ScreenshotStorage,
   Serialized,
-  TcPinpointStore,
-} from "@tc-pinpoint/core";
+  PinPointStore,
+} from "@pinpoint/core";
 // Status/type constants + helpers
 // Store errors — throw these from adapter implementations
 export {
@@ -99,4 +99,4 @@ export {
   StorePersistenceError,
   StoreValueTooLongError,
   toFeedbackUpdate,
-} from "@tc-pinpoint/core";
+} from "@pinpoint/core";

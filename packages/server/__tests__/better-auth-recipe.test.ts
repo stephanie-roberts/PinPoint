@@ -1,15 +1,15 @@
-import { MemoryStore } from "@tc-pinpoint/adapter-memory";
-import type { CommentResponse, FeedbackPermissions, FeedbackResponse, FeedbackResponseList } from "@tc-pinpoint/core";
+import { MemoryStore } from "@pinpoint/adapter-memory";
+import type { CommentResponse, FeedbackPermissions, FeedbackResponse, FeedbackResponseList } from "@pinpoint/core";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { admin, bearer, jwt } from "better-auth/plugins";
 import { createLocalJWKSet, type JSONWebKeySet, type JWTPayload, jwtVerify } from "jose";
 import { describe, expect, it, vi } from "vitest";
 import {
-  createTcPinpointHandler,
-  type TcPinpointAccessControl,
-  type TcPinpointHandler,
-  type TcPinpointLogger,
+  createPinPointHandler,
+  type PinPointAccessControl,
+  type PinPointHandler,
+  type PinPointLogger,
 } from "../src/index.js";
 import { validPayloadNoAnnotations } from "./fixtures.js";
 
@@ -54,7 +54,7 @@ interface Reviewer {
 
 const VISITOR: Reviewer = { id: "", name: "", email: "", isAdmin: false };
 
-function betterAuthAccess(auth: Auth): TcPinpointAccessControl<Reviewer> {
+function betterAuthAccess(auth: Auth): PinPointAccessControl<Reviewer> {
   return {
     async authenticate(request) {
       const session = await auth.api.getSession({
@@ -78,7 +78,7 @@ function betterAuthAccess(auth: Auth): TcPinpointAccessControl<Reviewer> {
 
 // ---- fixtures ---------------------------------------------------------------
 
-const ENDPOINT = `${BASE_URL}/api/tcpinpoint`;
+const ENDPOINT = `${BASE_URL}/api/pinpoint`;
 const PROJECT = validPayloadNoAnnotations.projectName;
 
 const ADMIN = { name: "Ada Lovelace", email: "ada@acme.example", role: "admin", emailVerified: true } as const;
@@ -127,9 +127,9 @@ async function signIn(auth: Auth, { name, email, role, emailVerified }: Account)
 
 function handlerFor(
   auth: Auth,
-  { logger = { error: vi.fn() }, allowedOrigins }: { logger?: TcPinpointLogger; allowedOrigins?: string[] } = {},
-): TcPinpointHandler {
-  return createTcPinpointHandler({
+  { logger = { error: vi.fn() }, allowedOrigins }: { logger?: PinPointLogger; allowedOrigins?: string[] } = {},
+): PinPointHandler {
+  return createPinPointHandler({
     store: new MemoryStore(),
     logger,
     allowedOrigins,
@@ -157,7 +157,7 @@ function send(method: string, body: unknown, headers: Record<string, string> = {
 
 let clientIds = 0;
 
-async function submit(handler: TcPinpointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponse> {
+async function submit(handler: PinPointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponse> {
   clientIds += 1;
   const response = await handler.POST(
     send("POST", { ...validPayloadNoAnnotations, clientId: `better-auth-${clientIds}` }, headers),
@@ -168,7 +168,7 @@ async function submit(handler: TcPinpointHandler, headers: Record<string, string
 
 /** Replies to `feedbackId` asking for the `team` role, as the inbox does. */
 async function reply(
-  handler: TcPinpointHandler,
+  handler: PinPointHandler,
   feedbackId: string,
   headers: Record<string, string> = {},
 ): Promise<CommentResponse> {
@@ -187,20 +187,20 @@ async function reply(
   return (await response.json()) as CommentResponse;
 }
 
-function list(handler: TcPinpointHandler, headers: Record<string, string> = {}): Promise<Response> {
+function list(handler: PinPointHandler, headers: Record<string, string> = {}): Promise<Response> {
   return handler.GET(new Request(`${ENDPOINT}?projectName=${PROJECT}`, { headers }));
 }
 
-async function page(handler: TcPinpointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponseList> {
+async function page(handler: PinPointHandler, headers: Record<string, string> = {}): Promise<FeedbackResponseList> {
   const response = await list(handler, headers);
   expect(response.status).toBe(200);
   return (await response.json()) as FeedbackResponseList;
 }
 
-const resolve = (handler: TcPinpointHandler, id: string, headers: Record<string, string> = {}) =>
+const resolve = (handler: PinPointHandler, id: string, headers: Record<string, string> = {}) =>
   handler.PATCH(send("PATCH", { id, projectName: PROJECT, status: "resolved" }, headers));
 
-const remove = (handler: TcPinpointHandler, id: string, headers: Record<string, string> = {}) =>
+const remove = (handler: PinPointHandler, id: string, headers: Record<string, string> = {}) =>
   handler.DELETE(send("DELETE", { id, projectName: PROJECT }, headers));
 
 // ---- the recipe, proven -----------------------------------------------------
@@ -437,7 +437,7 @@ describe("Better Auth recipe", () => {
     });
 
     expect((await list(handler, cookie)).status).toBe(500);
-    expect(logger.error).toHaveBeenCalledWith("[tcpinpoint] Failed to authenticate request", expect.anything());
+    expect(logger.error).toHaveBeenCalledWith("[pinpoint] Failed to authenticate request", expect.anything());
     expect((await list(handler)).status).toBe(200);
   });
 
@@ -510,7 +510,7 @@ describe("Better Auth recipe — authors delete their own feedback", () => {
       return ids;
     }
 
-    const handler = createTcPinpointHandler({
+    const handler = createPinPointHandler({
       store: new MemoryStore(),
       access: {
         ...betterAuthAccess(auth),

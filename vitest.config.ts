@@ -13,10 +13,10 @@ export default defineConfig({
   resolve: {
     conditions: ["import", "module", "default"],
     // These packages export only their built `dist`. Tests that import one resolve it to
-    // source, like `@tc-pinpoint/core`, so they need no prior build.
+    // source, like `@pinpoint/core`, so they need no prior build.
     alias: {
-      "@tc-pinpoint/adapter-memory": source("adapter-memory"),
-      "@tc-pinpoint/server": source("server"),
+      "@pinpoint/adapter-memory": source("adapter-memory"),
+      "@pinpoint/server": source("server"),
     },
   },
   test: {

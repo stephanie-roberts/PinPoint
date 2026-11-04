@@ -1,9 +1,9 @@
-import { testTcPinpointStore } from "@tc-pinpoint/core/testing";
+import { testPinPointStore } from "@pinpoint/core/testing";
 import { describe, expect, it } from "vitest";
 import { MemoryStore } from "../src/index.js";
 
-// Run the full TcPinpointStore conformance suite
-testTcPinpointStore(() => new MemoryStore());
+// Run the full PinPointStore conformance suite
+testPinPointStore(() => new MemoryStore());
 
 // ---------------------------------------------------------------------------
 // MemoryStore-specific tests
@@ -205,7 +205,7 @@ describe("MemoryStore concurrency", () => {
 // classes exported by this entry: every error a store method throws must be one.
 it("re-exports every store error its methods throw", async () => {
   const { isStorePersistence, StoreDuplicateError, StoreLimitError, StoreNotFoundError, StorePersistenceError } =
-    await import("@tc-pinpoint/core");
+    await import("@pinpoint/core");
 
   expect(await import("../src/index.js")).toMatchObject({
     isStorePersistence,

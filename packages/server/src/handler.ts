@@ -1,4 +1,4 @@
-import { hasOwn } from "@tc-pinpoint/core";
+import { hasOwn } from "@pinpoint/core";
 import { type AccessGate, createAccessGate, createApiKeyGate } from "./access.js";
 import { DEFAULT_MAX_BODY_BYTES } from "./constants.js";
 import { preflightResponse } from "./cors.js";
@@ -9,19 +9,19 @@ import { deleteFeedbackOperation } from "./operations/delete-feedback.js";
 import { listFeedbacksOperation } from "./operations/list-feedbacks.js";
 import { updateFeedbackOperation } from "./operations/update-feedback.js";
 import type {
-  TcPinpointAccessHandlerOptions,
-  TcPinpointApiKeyHandlerOptions,
-  TcPinpointHandler,
-  TcPinpointHandlerBaseOptions,
-  TcPinpointHandlerOptions,
-  TcPinpointHttpMethod,
-  TcPinpointLogger,
-  TcPinpointPrincipal,
+  PinPointAccessHandlerOptions,
+  PinPointApiKeyHandlerOptions,
+  PinPointHandler,
+  PinPointHandlerBaseOptions,
+  PinPointHandlerOptions,
+  PinPointHttpMethod,
+  PinPointLogger,
+  PinPointPrincipal,
 } from "./options.js";
 import { createPipeline, type Pipeline, type Scope } from "./pipeline.js";
 import { checkWebhookTimeouts, type WebhookConfig } from "./webhooks.js";
 
-const consoleLogger: TcPinpointLogger = {
+const consoleLogger: PinPointLogger = {
   error(message, context) {
     console.error(message, context);
   },
@@ -31,7 +31,7 @@ const consoleLogger: TcPinpointLogger = {
  * `logger`, made safe to call anywhere: a throw, or a rejection of what it
  * returns — unhandled, fatal in Node by default — falls back to `console.error`.
  */
-function safeLogger(logger: TcPinpointLogger): TcPinpointLogger {
+function safeLogger(logger: PinPointLogger): PinPointLogger {
   return {
     error(message, context) {
       try {
@@ -52,7 +52,7 @@ type BodyOperation<Principal> = (scope: Scope<Principal>, body: unknown) => Prom
  */
 function routeByBody<Principal>(
   pipeline: Pipeline<Principal>,
-  method: TcPinpointHttpMethod,
+  method: PinPointHttpMethod,
   commentKey: "feedbackId" | "commentId",
   comment: BodyOperation<Principal>,
   feedback: BodyOperation<Principal>,
@@ -67,7 +67,7 @@ function routeByBody<Principal>(
 }
 
 /**
- * Create the PinPoint HTTP API over any `TcPinpointStore`, using only the Fetch
+ * Create the PinPoint HTTP API over any `PinPointStore`, using only the Fetch
  * API (`Request` → `Response`): one handler per method, to mount in Next.js
  * route handlers, Hono, Remix, SvelteKit, Bun, Deno or edge workers.
  *
@@ -77,7 +77,7 @@ function routeByBody<Principal>(
  * the widget typically calls it from unauthenticated browser contexts.
  *
  * Access is either the built-in `apiKey` policy or your own `access` policy
- * (sessions, JWTs, roles…) — see `TcPinpointAccessHandlerOptions`.
+ * (sessions, JWTs, roles…) — see `PinPointAccessHandlerOptions`.
  *
  * @throws Error without a `store`; with a `maxBodyBytes` that is not a
  * positive integer, or a webhook `timeoutMs` no timer holds; in production
@@ -86,28 +86,28 @@ function routeByBody<Principal>(
  * PATCH/DELETE could then reach a record of a project the caller is not
  * authorized for.
  *
- * @example Next.js App Router — `app/api/tcpinpoint/route.ts`
+ * @example Next.js App Router — `app/api/pinpoint/route.ts`
  * ```ts
- * import { createTcPinpointHandler } from '@tc-pinpoint/server'
- * import { store } from '@/lib/tcpinpoint-store'
+ * import { createPinPointHandler } from '@pinpoint/server'
+ * import { store } from '@/lib/pinpoint-store'
  *
- * export const { GET, POST, PATCH, DELETE, OPTIONS } = createTcPinpointHandler({
+ * export const { GET, POST, PATCH, DELETE, OPTIONS } = createPinPointHandler({
  *   store,
- *   apiKey: process.env.TC_PINPOINT_API_KEY,
+ *   apiKey: process.env.PINPOINT_API_KEY,
  * })
  * ```
  */
-export function createTcPinpointHandler<Principal extends TcPinpointPrincipal>(
-  options: TcPinpointAccessHandlerOptions<Principal>,
-): TcPinpointHandler;
-export function createTcPinpointHandler(options: TcPinpointApiKeyHandlerOptions): TcPinpointHandler;
+export function createPinPointHandler<Principal extends PinPointPrincipal>(
+  options: PinPointAccessHandlerOptions<Principal>,
+): PinPointHandler;
+export function createPinPointHandler(options: PinPointApiKeyHandlerOptions): PinPointHandler;
 /** Options assembled at runtime, either policy. */
-export function createTcPinpointHandler<Principal extends TcPinpointPrincipal>(
-  options: TcPinpointHandlerOptions<Principal>,
-): TcPinpointHandler;
-export function createTcPinpointHandler<Principal extends TcPinpointPrincipal>(
-  options: TcPinpointHandlerOptions<Principal>,
-): TcPinpointHandler {
+export function createPinPointHandler<Principal extends PinPointPrincipal>(
+  options: PinPointHandlerOptions<Principal>,
+): PinPointHandler;
+export function createPinPointHandler<Principal extends PinPointPrincipal>(
+  options: PinPointHandlerOptions<Principal>,
+): PinPointHandler {
   // Both policies share the callbacks, typed over `Principal` (`null` under apiKey).
   const {
     store,
@@ -121,13 +121,13 @@ export function createTcPinpointHandler<Principal extends TcPinpointPrincipal>(
     logger: customLogger,
     describeError,
     maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
-  } = options as TcPinpointHandlerBaseOptions<Principal>;
+  } = options as PinPointHandlerBaseOptions<Principal>;
   if (!store) {
-    throw new Error("[tcpinpoint] createTcPinpointHandler requires a `store`.");
+    throw new Error("[pinpoint] createPinPointHandler requires a `store`.");
   }
   if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0) {
     throw new Error(
-      `[tcpinpoint] createTcPinpointHandler: \`maxBodyBytes\` must be a positive integer, got ${maxBodyBytes}.`,
+      `[pinpoint] createPinPointHandler: \`maxBodyBytes\` must be a positive integer, got ${maxBodyBytes}.`,
     );
   }
   // A custom `authorize` may scope callers to projects, but PATCH/DELETE
@@ -135,7 +135,7 @@ export function createTcPinpointHandler<Principal extends TcPinpointPrincipal>(
   // claims (and is authorized for) need not be the record's. Fail closed.
   if (options.access?.authorize && !store.verifyProjectOwnership) {
     throw new Error(
-      "[tcpinpoint] createTcPinpointHandler: `access.authorize` needs a store implementing `verifyProjectOwnership`. " +
+      "[pinpoint] createPinPointHandler: `access.authorize` needs a store implementing `verifyProjectOwnership`. " +
         "Without it, a caller authorized for one project could PATCH or DELETE another project's feedback by id.",
     );
   }

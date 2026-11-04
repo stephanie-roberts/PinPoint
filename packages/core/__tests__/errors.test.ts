@@ -1,70 +1,70 @@
 import { describe, expect, it } from "vitest";
 import {
-  TcPinpointAuthError,
-  TcPinpointError,
-  TcPinpointNetworkError,
-  TcPinpointValidationError,
+  PinPointAuthError,
+  PinPointError,
+  PinPointNetworkError,
+  PinPointValidationError,
 } from "../src/errors.js";
 import { StoreLimitError, StoreNotFoundError } from "../src/types.js";
 import { errorFromResponse, isCommentGone, isThreadFull } from "../src/wire.js";
 
-describe("TcPinpointError (base)", () => {
+describe("PinPointError (base)", () => {
   it("constructs with explicit code and retryable flag", () => {
-    const err = new TcPinpointError("boom", "CUSTOM", true);
+    const err = new PinPointError("boom", "CUSTOM", true);
     expect(err.message).toBe("boom");
     expect(err.code).toBe("CUSTOM");
     expect(err.retryable).toBe(true);
-    expect(err.name).toBe("TcPinpointError");
+    expect(err.name).toBe("PinPointError");
   });
 
   it("is an Error subclass — instanceof Error", () => {
-    const err = new TcPinpointError("x", "X", false);
+    const err = new PinPointError("x", "X", false);
     expect(err).toBeInstanceOf(Error);
   });
 
   it("retryable can be explicitly false", () => {
-    const err = new TcPinpointError("nope", "NOPE", false);
+    const err = new PinPointError("nope", "NOPE", false);
     expect(err.retryable).toBe(false);
   });
 });
 
-describe("TcPinpointNetworkError", () => {
+describe("PinPointNetworkError", () => {
   it("has code NETWORK and is retryable", () => {
-    const err = new TcPinpointNetworkError("connection refused");
+    const err = new PinPointNetworkError("connection refused");
     expect(err.code).toBe("NETWORK");
     expect(err.retryable).toBe(true);
-    expect(err.name).toBe("TcPinpointNetworkError");
+    expect(err.name).toBe("PinPointNetworkError");
   });
 
-  it("is instanceof TcPinpointError", () => {
-    const err = new TcPinpointNetworkError("x");
-    expect(err).toBeInstanceOf(TcPinpointError);
+  it("is instanceof PinPointError", () => {
+    const err = new PinPointNetworkError("x");
+    expect(err).toBeInstanceOf(PinPointError);
   });
 
   it("preserves the message", () => {
-    const err = new TcPinpointNetworkError("timed out after 10s");
+    const err = new PinPointNetworkError("timed out after 10s");
     expect(err.message).toBe("timed out after 10s");
   });
 });
 
-describe("TcPinpointValidationError", () => {
+describe("PinPointValidationError", () => {
   it("has code VALIDATION and is not retryable", () => {
-    const err = new TcPinpointValidationError("bad shape");
+    const err = new PinPointValidationError("bad shape");
     expect(err.code).toBe("VALIDATION");
     expect(err.retryable).toBe(false);
-    expect(err.name).toBe("TcPinpointValidationError");
+    expect(err.name).toBe("PinPointValidationError");
   });
 
-  it("is instanceof TcPinpointError", () => {
-    const err = new TcPinpointValidationError("x");
-    expect(err).toBeInstanceOf(TcPinpointError);
+  it("is instanceof PinPointError", () => {
+    const err = new PinPointValidationError("x");
+    expect(err).toBeInstanceOf(PinPointError);
   });
 
   it("carries the HTTP status a response gave it", async () => {
     const err = await errorFromResponse(new Response("{}", { status: 409 }), "Failed");
-    expect(err).toBeInstanceOf(TcPinpointValidationError);
-    expect((err as TcPinpointValidationError).status).toBe(409);
-    expect(new TcPinpointValidationError("x").status).toBeUndefined();
+    expect(err).toBeInstanceOf(PinPointValidationError);
+    expect((err as PinPointValidationError).status).toBe(409);
+    expect(new PinPointValidationError("x").status).toBeUndefined();
   });
 });
 
@@ -104,25 +104,25 @@ describe("thread failures", () => {
   });
 });
 
-describe("TcPinpointAuthError", () => {
+describe("PinPointAuthError", () => {
   it("has code AUTH and is not retryable", () => {
-    const err = new TcPinpointAuthError("401", 401);
+    const err = new PinPointAuthError("401", 401);
     expect(err.code).toBe("AUTH");
     expect(err.retryable).toBe(false);
-    expect(err.name).toBe("TcPinpointAuthError");
+    expect(err.name).toBe("PinPointAuthError");
   });
 
-  it("is instanceof TcPinpointError", () => {
-    const err = new TcPinpointAuthError("x", 403);
-    expect(err).toBeInstanceOf(TcPinpointError);
+  it("is instanceof PinPointError", () => {
+    const err = new PinPointAuthError("x", 403);
+    expect(err).toBeInstanceOf(PinPointError);
   });
 
-  it("is distinguishable from TcPinpointValidationError despite both not retryable", () => {
-    const auth = new TcPinpointAuthError("401", 401);
-    const validation = new TcPinpointValidationError("400");
-    expect(auth).toBeInstanceOf(TcPinpointAuthError);
-    expect(auth).not.toBeInstanceOf(TcPinpointValidationError);
-    expect(validation).toBeInstanceOf(TcPinpointValidationError);
-    expect(validation).not.toBeInstanceOf(TcPinpointAuthError);
+  it("is distinguishable from PinPointValidationError despite both not retryable", () => {
+    const auth = new PinPointAuthError("401", 401);
+    const validation = new PinPointValidationError("400");
+    expect(auth).toBeInstanceOf(PinPointAuthError);
+    expect(auth).not.toBeInstanceOf(PinPointValidationError);
+    expect(validation).toBeInstanceOf(PinPointValidationError);
+    expect(validation).not.toBeInstanceOf(PinPointAuthError);
   });
 });

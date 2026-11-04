@@ -1,10 +1,10 @@
-import { isStoreNotFound, type TcPinpointStore } from "@tc-pinpoint/core";
+import { isStoreNotFound, type PinPointStore } from "@pinpoint/core";
 import { ERROR_MESSAGES } from "../constants.js";
 import type { Pipeline, Scope } from "../pipeline.js";
 import { commentDeleteSchema } from "../validation.js";
 
 interface DeleteCommentDependencies<Principal> {
-  store: TcPinpointStore;
+  store: PinPointStore;
   pipeline: Pipeline<Principal>;
 }
 
@@ -30,7 +30,7 @@ export function deleteCommentOperation<Principal>({ store, pipeline }: DeleteCom
       return pipeline.json(scope, { deleted: true });
     } catch (error) {
       if (isStoreNotFound(error)) return pipeline.error(scope, 404, ERROR_MESSAGES.commentNotFound);
-      return pipeline.fail(scope, "[tcpinpoint] Failed to delete comment", error);
+      return pipeline.fail(scope, "[pinpoint] Failed to delete comment", error);
     }
   };
 }

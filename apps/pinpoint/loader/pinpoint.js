@@ -1,32 +1,21 @@
-/*!
- * PinPoint for client sites.
- *
- *   <script src="https://your-pinpoint-server/pinpoint.js" data-site="test" defer></script>
- *
- * Nothing shows to ordinary visitors. Open the site with ?feedback on the end of the address,
- * sign in with your name and email (a code is emailed to you), and the feedback widget appears.
- * It stays on in that browser until you sign out. ?feedback=off turns it off again.
- */
-
 (() => {
-  if (window.__pinpoint) return;
-  window.__pinpoint = true;
+    if (window.__pinpoint) return;
+    window.__pinpoint = true;
 
-  const script = document.currentScript;
-  const site = script?.dataset.site;
-  if (!script || !site) {
-    console.warn('[pinpoint] Add data-site="your-site-name" to the pinpoint.js script tag.');
-    return;
-  }
+    const script = document.currentScript;
+    const site = script?.dataset.site;
+
+    if (!script || !site) {
+        console.warn("[pinpoint] Add data-site=\"your-site-name\" to the pinpoint.js script tag.");
+        return;
+    }
 
     const server = new URL(script.src).origin;
-    // These names start "tcpinpoint:" from before the rename. Changing them would sign everyone out.
-    const SESSION_KEY = `tcpinpoint:session:${server}`;
+    const SESSION_KEY = `pinpoint:session:${server}`;
     const LAST_KEY = `${SESSION_KEY}:last`;
-    const ON_KEY = `tcpinpoint:on:${site}`;
+    const ON_KEY = `pinpoint:on:${site}`;
 
-  // ---------------------------------------------------------------- saving to the browser
-
+  // saving to the browser
   const store = {
     get(key) {
       try {
@@ -45,8 +34,7 @@
     },
   };
 
-  // ---------------------------------------------------------------- talking to the server
-
+  //  talking to the server
   async function api(path, { method = "GET", body, token } = {}) {
     const headers = { Accept: "application/json" };
     if (body) headers["Content-Type"] = "application/json";
@@ -59,14 +47,13 @@
     return data;
   }
 
-
   const LOGO =
     '<svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#5B3DF5"/><path d="M12 8.5 L12 23 L15.6 19.8 L18.1 25 L20.7 23.8 L18.2 18.7 L23 18.7 Z" fill="#FFFFFF" stroke="#15122E" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.6 10.2 L7.4 9.4 M10.4 7.2 L9.4 5.2 M13.4 6.4 L13.9 4.3" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
-  // ---------------------------------------------------------------- building the UI (in its own closed shadow root, styled by pinpoint.css)
+  // building the UI
 
   const host = document.createElement("div");
-  host.setAttribute("data-tcpinpoint-ignore", ""); // left out of screenshots
+  host.setAttribute("data-pinpoint-ignore", ""); // left out of screenshots
   const root = host.attachShadow({ mode: "closed" });
   const ui = document.createElement("div");
   ui.className = "ui";
@@ -115,7 +102,7 @@
         class: "signin-card",
         role: "dialog",
         "aria-modal": "true",
-        "aria-labelledby": "tcp-title",
+        "aria-labelledby": "pp-title",
         onsubmit: async (event) => {
           event.preventDefault();
           error.textContent = "";
@@ -128,7 +115,7 @@
       },
       [
         h("span", { html: LOGO }),
-        h("h2", { id: "tcp-title", text: title }),
+        h("h2", { id: "pp-title", text: title }),
         h("p", { id: introId, text: intro }),
         ...fields,
         error,
@@ -141,8 +128,8 @@
 
   function openSignIn(message = "") {
     returnFocus ??= document.activeElement;
-    const name = h("input", { id: "tcp-name", autocomplete: "name", required: true, maxlength: "100" });
-    const email = h("input", { id: "tcp-email", type: "email", autocomplete: "email", required: true });
+    const name = h("input", { id: "pp-name", autocomplete: "name", required: true, maxlength: "100" });
+    const email = h("input", { id: "pp-email", type: "email", autocomplete: "email", required: true });
     const send = h("button", { class: "signin-btn", type: "submit", text: "Email me a code" });
 
     const saved = store.get(LAST_KEY);
@@ -152,7 +139,7 @@
     const form = dialog({
       title: "Leave feedback on this site",
       intro: "We'll email you a 6-digit code to check it's you.",
-      fields: [h("label", { for: "tcp-name", text: "Your name" }), name, h("label", { for: "tcp-email", text: "Email" }), email],
+      fields: [h("label", { for: "pp-name", text: "Your name" }), name, h("label", { for: "pp-email", text: "Email" }), email],
       buttons: [h("button", { class: "signin-btn ghost", type: "button", text: "Cancel", onclick: () => closeDialog() }), send],
       focus: saved?.name ? email : name,
       onSubmit: async () => {
@@ -173,22 +160,22 @@
 
   function openCode(email) {
     const code = h("input", {
-      id: "tcp-code",
+      id: "pp-code",
       class: "signin-code",
       inputmode: "numeric",
       autocomplete: "one-time-code",
       pattern: "[0-9]{6}",
       maxlength: "6",
       required: true,
-      "aria-describedby": "tcp-code-help",
+      "aria-describedby": "pp-code-help",
     });
     const verify = h("button", { class: "signin-btn", type: "submit", text: "Continue" });
 
     const form = dialog({
       title: "Check your email",
       intro: `If ${email} has been invited to this site, a code is on its way. It works for 10 minutes.`,
-      introId: "tcp-code-help",
-      fields: [h("label", { for: "tcp-code", text: "6-digit code" }), code],
+      introId: "pp-code-help",
+      fields: [h("label", { for: "pp-code", text: "6-digit code" }), code],
       buttons: [h("button", { class: "signin-link", type: "button", text: "Use a different email", onclick: () => openSignIn() }), verify],
       focus: code,
       onSubmit: async () => {
@@ -268,7 +255,7 @@
   async function start(session) {
     await loadWidgetScript();
     widget = window.PinPointWidget.init({
-      endpoint: `${server}/api/tcpinpoint`,
+      endpoint: `${server}/api/pinpoint`,
       projectName: site,
       token: session.token,
       identity: { name: session.name, email: session.email, role: session.role },
@@ -298,14 +285,14 @@
   // ---------------------------------------------------------------- start
 
   async function boot() {
-    // ?feedback turns feedback on in this browser; ?feedback=off turns it off. Links from emails (?tcpinpoint=…) count too.
+    // ?feedback turns feedback on in this browser; ?feedback=off turns it off. Links from emails (?pinpoint=…) count too.
     const params = new URLSearchParams(location.search);
     if (params.get("feedback") === "off") {
       store.set(ON_KEY, null);
       signOut(false);
       return;
     }
-    if (params.has("feedback") || params.has("tcpinpoint")) store.set(ON_KEY, true);
+    if (params.has("feedback") || params.has("pinpoint")) store.set(ON_KEY, true);
 
     const session = store.get(SESSION_KEY);
     if (session?.token) {
