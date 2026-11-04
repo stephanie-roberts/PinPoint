@@ -114,14 +114,12 @@
     @apply bg-pale text-muted;
   }
 
-  /* white panels */
   .card {
-    @apply rounded-[24px] border border-line bg-white;
+    @apply rounded-[20px] border border-line bg-white;
   }
 
-  /* the bold, outlined cards from the brand */
   .card-bold {
-    @apply rounded-[24px] border-2 border-ink bg-white shadow-[8px_8px_0_var(--color-ink)];
+    @apply rounded-[20px] border-2 border-ink bg-white shadow-[8px_8px_0_var(--color-ink)];
   }
 
   .tile {
