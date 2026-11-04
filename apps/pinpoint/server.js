@@ -465,14 +465,14 @@ const server = createServer(async (req, res) => {
 server.listen(port, () => {
   console.log(`\n  PinPoint is running on http://localhost:${port}\n`);
   console.log(`  Inbox:   http://localhost:${port}/`);
-  console.log(`  Team:    anyone @${teamDomains.join(", @")}`);
-  console.log(
-    `  Sites:   ${
-      sites
-        .all()
-        .map((s) => s.name)
-        .join(", ") || "none yet, add them in the inbox"
-    }`,
-  );
+//   console.log(`  Team:    anyone @${teamDomains.join(", @")}`);
+//   console.log(
+//     `  Sites:   ${
+//       sites
+//         .all()
+//         .map((s) => s.name)
+//         .join(", ") || "none yet, add them in the inbox"
+//     }`,
+//   );
   console.log(`  Codes:   ${mailer.live ? "emailed through Postmark" : "printed here (no Postmark token yet)"}\n`);
 });
