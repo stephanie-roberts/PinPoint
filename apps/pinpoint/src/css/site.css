@@ -5,9 +5,6 @@
 @source inline("bg-{bug,change,question,other}");
 @source inline("chip-{bug,change,question,other}");
 
-/*
-        Brand: ink, snag violet, lilac and paper (see the "PinPoint redesign" canvas)
-*/
 
 @theme {
   --breakpoint-wide: 1440px;
@@ -259,16 +256,15 @@ body {
   background: var(--color-paper);
 }
 
-/* In the base layer, so Tailwind's text colours on links and buttons always win. */
 @layer base {
-  a {
-    color: inherit;
-    text-decoration: none;
-  }
+    a {
+        color: inherit;
+        text-decoration: none;
+    }
 
-  button {
-    cursor: pointer;
-  }
+    button {
+        cursor: pointer;
+    }
 }
 
 :focus-visible {
@@ -276,18 +272,3 @@ body {
   outline-offset: 2px;
 }
 
-[x-cloak] {
-  /* biome-ignore lint/complexity/noImportantStyles: Alpine must hide x-cloak elements whatever else styles them */
-  display: none !important;
-}
-
-/* biome-ignore-start lint/complexity/noImportantStyles: reduced motion has to win over every transition */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-  }
-}
-/* biome-ignore-end lint/complexity/noImportantStyles: reduced motion */

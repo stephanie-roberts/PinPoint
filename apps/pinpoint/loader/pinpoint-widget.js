@@ -18,123 +18,7 @@
   const CLOSED = new Set(["resolved", "wont_fix"]);
   const MIN_BOX = 8; // a drag smaller than this counts as a click on one element
 
-  // ---------------------------------------------------------------- styles
-
-  const STYLES = `
-    :host { all: initial; }
-    * { box-sizing: border-box; }
-    .root { font: 14px/1.45 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #15122e; }
-    button, textarea { font: inherit; color: inherit; }
-    button { cursor: pointer; }
-    :focus-visible { outline: 2px solid #5b3df5; outline-offset: 2px; }
-    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-
-    /* the toolbar */
-    .toolbar { position: fixed; right: 20px; bottom: 20px; z-index: 2147483000; display: flex; align-items: center; gap: 6px;
-      padding: 6px; border-radius: 999px; background: #15122e; box-shadow: 0 12px 32px rgba(21,18,46,.3); }
-    .tool { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%;
-      background: #2a2650; color: #fff; transition: background .2s, transform .2s; }
-    .tool:hover { background: #3a3566; }
-    .tool[aria-pressed="false"] { background: transparent; color: #c9c6da; }
-    .tool svg { width: 20px; height: 20px; }
-    .tool-count { display: flex; gap: 8px; width: auto; padding: 0 14px; border-radius: 999px; font-weight: 600; }
-    .tool-count svg { width: 18px; height: 18px; }
-    .tool-main { width: 52px; height: 52px; background: #5b3df5; }
-    .tool-main:hover { background: #4527d9; transform: scale(1.05); }
-    .tool-main svg { width: 26px; height: 26px; }
-    .toolbar :focus-visible { outline-color: #dcd5ff; }
-
-    /* drawing a box */
-    .draw { position: fixed; inset: 0; z-index: 2147483001; cursor: crosshair; background: rgba(21,18,46,.12); touch-action: none; }
-    .bar { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 2147483002; display: flex; flex-wrap: wrap;
-      align-items: center; justify-content: center; gap: 8px 14px; max-width: calc(100% - 32px); padding: 10px 12px 10px 18px;
-      border-radius: 999px; background: #15122e; color: #fff; box-shadow: 0 8px 28px rgba(21,18,46,.3); font-weight: 500; }
-    .bar button { border: 0; border-radius: 999px; padding: 6px 12px; background: rgba(255,255,255,.14); color: #fff; font-size: 13px; }
-    .bar button:hover { background: rgba(255,255,255,.24); }
-    .box { position: fixed; z-index: 2147483001; border: 3px solid #5b3df5; border-radius: 8px;
-      background: rgba(91,61,245,.08); box-shadow: 0 0 0 9999px rgba(21,18,46,.12); pointer-events: none; }
-    .box.hover { border-width: 2px; box-shadow: none; background: rgba(91,61,245,.06); }
-
-    /* pins on the page */
-    .pins { position: fixed; inset: 0; z-index: 2147482999; pointer-events: none; }
-    .pin { position: fixed; display: grid; place-items: center; width: 28px; height: 28px; margin: -14px 0 0 -14px;
-      border: 2px solid #fff; border-radius: 50%; background: #5b3df5; color: #fff; font-size: 12px; font-weight: 700;
-      box-shadow: 0 3px 10px rgba(0,0,0,.3); pointer-events: auto; transition: transform .15s; }
-    .pin:hover, .pin[aria-expanded="true"] { transform: scale(1.12); }
-    .pin.in_progress { background: #e89c16; }
-
-    /* cards: the new-feedback form and a feedback's details */
-    .card { position: fixed; z-index: 2147483003; border: 2px solid #15122e; width: 340px; max-width: calc(100vw - 24px); max-height: calc(100vh - 24px);
-      overflow-y: auto; padding: 18px; border-radius: 16px; background: #fff; box-shadow: 0 16px 50px rgba(0,0,0,.22); }
-    .card h2 { margin: 0 0 12px; font-size: 18px; letter-spacing: -.01em; }
-    .types { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 12px; padding: 0; border: 0; }
-    .types legend { margin-bottom: 8px; font-size: 12px; font-weight: 700; color: #5b5873; text-transform: uppercase; letter-spacing: .06em; }
-    .types button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: 1px solid #e4e2ee;
-      border-radius: 10px; background: #fff; font-size: 12px; font-weight: 600; }
-    .types button[aria-pressed="true"] { border-color: #15122e; background: #15122e; color: #fff; }
-    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
-    textarea { display: block; width: 100%; min-height: 96px; resize: vertical; padding: 10px 12px; border: 1px solid #c9c6da;
-      border-radius: 10px; background: #fff; }
-    textarea:focus { border-color: #15122e; outline: none; }
-    .hint { margin: 6px 0 0; color: #5b5873; font-size: 12px; }
-    .row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-    .btn { min-height: 44px; border: 1px solid #15122e; border-radius: 999px; padding: 9px 18px; background: #15122e; color: #fff; font-weight: 600; }
-    .btn.ghost { border: 2px solid #15122e; background: #fff; color: #15122e; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .error { margin: 10px 0 0; color: #c0392b; font-size: 13px; }
-    .close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 32px; height: 32px;
-      border: 0; border-radius: 50%; background: none; }
-    .close:hover { background: #f6f5fb; }
-    .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-right: 30px; font-size: 12px; color: #5b5873; }
-    .meta strong { color: #15122e; }
-    .status { padding: 2px 8px; border-radius: 999px; background: #f6f5fb; color: #15122e; font-weight: 600; }
-    .message { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; font-weight: 500; }
-    .replies { margin: 16px 0 0; padding: 0; list-style: none; }
-    .reply { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: #f6f5fb; }
-    .reply.team { background: #15122e; color: #fff; }
-    .reply .who { font-size: 12px; font-weight: 700; }
-    .reply .when { font-weight: 400; opacity: .7; }
-    .reply p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .card form textarea { min-height: 70px; margin-top: 14px; }
-    .assign { margin-top: 16px; }
-    .assign label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: #5b5873;
-      text-transform: uppercase; letter-spacing: .06em; }
-    select { display: block; width: 100%; padding: 9px 12px; border: 1px solid #c9c6da; border-radius: 10px;
-      background: #fff; font: inherit; color: inherit; }
-    select:focus { border-color: #15122e; outline: none; }
-
-    /* list of everything on this page */
-    .panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147483003; display: flex; flex-direction: column;
-      width: 380px; max-width: 100vw; background: #fff; box-shadow: -12px 0 40px rgba(0,0,0,.15); }
-    .panel header { position: relative; padding: 20px 20px 14px; border-bottom: 1px solid #e4e2ee; }
-    .panel h2 { margin: 0; font-size: 18px; }
-    .panel header p { margin: 4px 0 0; color: #5b5873; font-size: 13px; }
-    .panel .list { flex: 1; overflow-y: auto; padding: 8px 0 20px; }
-    .panel h3 { margin: 16px 20px 6px; font-size: 11px; font-weight: 700; color: #5b5873; text-transform: uppercase; letter-spacing: .08em; }
-    .item { display: block; width: 100%; padding: 12px 20px; border: 0; border-bottom: 1px solid #f0f0f0; background: none; text-align: left; }
-    .item:hover, .item:focus-visible { background: #f6f5fb; }
-    .item .top { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; }
-    .item .num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
-      background: #5b3df5; color: #fff; font-size: 11px; }
-    .item .text { display: -webkit-box; margin-top: 6px; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .item .sub { margin-top: 4px; font-size: 12px; color: #5b5873; }
-    .empty { margin: 30px 20px; color: #5b5873; }
-    details summary { margin: 16px 20px 6px; cursor: pointer; color: #5b5873; }
-    details summary h3 { display: inline; margin: 0; }
-
-    .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 2147483004; padding: 10px 18px;
-      border-radius: 999px; background: #15122e; color: #fff; font-weight: 500; box-shadow: 0 6px 24px rgba(0,0,0,.2); }
-    .toast.error { background: #d64536; }
-
-    /* phones: cards become sheets at the bottom of the screen */
-    @media (max-width: 600px) {
-      .card { left: 0 !important; right: 0; top: auto !important; bottom: 0; width: 100%; max-width: 100%; max-height: 80vh;
-        border-radius: 18px 18px 0 0; }
-      .panel { width: 100%; }
-      .bar { top: auto; bottom: 90px; border-radius: 18px; }
-    }
-    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  `;
+  // The styles are in pinpoint.css (served at /pinpoint.css, beside this file).
 
   const ICONS = {
     pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
@@ -343,7 +227,12 @@
     const host = document.createElement("div");
     host.setAttribute("data-tcpinpoint-ignore", "");
     const shadow = host.attachShadow({ mode: "closed" });
-    shadow.innerHTML = `<style>${STYLES}</style>`;
+    // Styles come from pinpoint.css. Stay hidden until they've loaded, so nothing flashes up unstyled.
+    host.style.visibility = "hidden";
+    const showWhenStyled = () => host.style.removeProperty("visibility");
+    shadow.append(
+      h("link", { rel: "stylesheet", href: `${new URL(endpoint).origin}/pinpoint.css`, onload: showWhenStyled, onerror: showWhenStyled }),
+    );
     const ui = h("div", { class: "root" });
     const pinLayer = h("div", { class: "pins" });
     const live = h("p", { class: "sr", role: "status", "aria-live": "polite" });

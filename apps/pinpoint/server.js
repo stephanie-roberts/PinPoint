@@ -4,6 +4,7 @@
 //   /pinpoint.js      the one script tag you add to a client's site
 //   /pinpoint-widget.js  the feedback widget pinpoint.js loads once someone signs in
 //   /html2canvas.js   the screenshot library PinPoint's widget uses
+//   /pinpoint.css     the styles for the sign-in card and the widget
 //   /api/auth/*       sign-in with a code sent by email
 //   /api/sites        your client sites and who's invited to them (team only)
 //   /api/assignments  who on your team each piece of feedback is assigned to (team only)
@@ -378,6 +379,7 @@ function sendFile(res, file, type, cache = "no-cache") {
 
 const loaderFile = path.join(here, "loader/pinpoint.js");
 const widgetFile = path.join(here, "loader/pinpoint-widget.js");
+const clientStylesFile = path.join(here, "loader/pinpoint.css");
 // The screenshot library the widget loads when someone leaves feedback.
 const screenshotFile = (() => {
   try {
@@ -431,6 +433,10 @@ const server = createServer(async (req, res) => {
     if (pathname in scripts) {
       res.setHeader("Access-Control-Allow-Origin", "*");
       return sendFile(res, scripts[pathname] ?? "", TYPES[".js"]);
+    }
+    if (pathname === "/pinpoint.css") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return sendFile(res, clientStylesFile, TYPES[".css"]);
     }
 
     if (vite) {

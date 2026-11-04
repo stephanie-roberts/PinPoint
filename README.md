@@ -106,7 +106,9 @@ A screenshot of the area around the box (or of the screen, for whole-page feedba
 
 When someone from your team signs in on a client's site, each piece of feedback also has an **Assigned to** menu. It lists the site's Notify list, works the same as assigning in the inbox, and emails the person it's assigned to. Clients don't see it.
 
-The widget's code is in `apps/pinpoint/loader/pinpoint-widget.js`, a single JavaScript file that doesn't need building: save it and reload the page.
+The widget's code is in `apps/pinpoint/loader/pinpoint-widget.js`, and its styles (and the sign-in card's) are in `apps/pinpoint/loader/pinpoint.css`. Neither needs building: save and reload the page.
+
+The widget's styles are kept apart from `site.css` on purpose. The widget runs on client sites inside its own sealed-off area (a Shadow DOM), so the client's CSS can't break it and its CSS can't leak onto their site. That means it can't use Tailwind classes from `site.css`, so it gets its own plain CSS file, using the same brand colours.
 
 ### Sharing it with clients
 
@@ -189,7 +191,7 @@ Settings are in `apps/pinpoint/.env`. See `.env.example` for the full list and n
 | Folder | What's in it |
 |---|---|
 | `apps/pinpoint/` | The inbox, server, widget loader and local demo. |
-| `apps/pinpoint/loader/` | The script added to client sites, and the feedback widget it loads. |
+| `apps/pinpoint/loader/` | The script added to client sites, the feedback widget it loads, and their styles (`pinpoint.css`). |
 | `apps/pinpoint/lib/` | Sign-in, email, notifications, site settings and file storage. |
 | `apps/pinpoint/data/` | Saved app data, created when needed. |
 | `packages/server/` | Feedback API and permissions. |
